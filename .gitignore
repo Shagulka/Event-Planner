@@ -30,9 +30,6 @@ db.sqlite3
 db.sqlite3-journal
 media/
 
-# Static files
-staticfiles/
-static/
 
 # IDE
 .vscode/
