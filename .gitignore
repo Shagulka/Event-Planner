@@ -47,5 +47,4 @@ Thumbs.db
 # Secrets
 .env
 *.env
-.env.*
 secrets.py
