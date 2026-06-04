@@ -1,0 +1,462 @@
+{% extends "base.html" %}
+
+{% block title %}Directory — Watson Forsberg{% endblock %}
+{% block nav_active_people %}active{% endblock %}
+
+{% block extra_css %}
+<style>
+  .filter-bar select { border-radius: 30px; padding-left: 1.1rem; }
+
+  .people-table {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+    overflow: hidden;
+  }
+  .people-table thead {
+    background: var(--brand);
+    color: #fff;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+  }
+  .people-table thead th { padding: 0.85rem 1rem; border: none; font-weight: 600; }
+  .people-table tbody tr { font-size: 0.88rem; border-bottom: 1px solid #f0f1f5; }
+  .people-table tbody tr:last-child { border-bottom: none; }
+  .people-table tbody tr:hover { background: #f8f9fc; }
+  .people-table tbody td { padding: 0.75rem 1rem; vertical-align: middle; }
+
+  .avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--brand-light);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .wf-badge {
+    font-size: 0.68rem;
+    background: var(--brand);
+    color: #fff;
+    border-radius: 20px;
+    padding: 0.2em 0.65em;
+    white-space: nowrap;
+  }
+
+  .btn-action {
+    border: none;
+    background: none;
+    padding: 0.2rem 0.45rem;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    line-height: 1;
+    transition: background 0.12s;
+  }
+  .btn-action.edit  { color: var(--brand); }
+  .btn-action.edit:hover  { background: #eef1fc; }
+  .btn-action.del   { color: #dc3545; }
+  .btn-action.del:hover   { background: #fde8ea; }
+
+  #addPersonModal .modal-header,
+  #editPersonModal .modal-header { background: var(--brand); color: #fff; }
+  #addPersonModal .modal-header .btn-close,
+  #editPersonModal .modal-header .btn-close { filter: invert(1); }
+
+  @media (max-width: 576px) {
+    .col-contact, .col-wf { display: none; }
+  }
+</style>
+{% endblock %}
+
+{% block hero %}
+<div class="page-hero">
+  <div class="container">
+    <h1><i class="bi bi-people-fill me-2"></i>Directory</h1>
+    <p class="mb-0">Browse and manage all contacts, staff, and guests.</p>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+
+  <!-- Filter bar -->
+  <div class="d-flex flex-wrap align-items-center gap-3 mb-4">
+    <div class="input-group filter-bar" style="max-width: 380px">
+      <span class="input-group-text bg-white border-end-0" style="border-radius: 30px 0 0 30px">
+        <i class="bi bi-search text-muted"></i>
+      </span>
+      <input id="searchInput" type="text" class="form-control border-start-0"
+             placeholder="Search by name, email, company…"
+             style="border-radius: 0 30px 30px 0" />
+    </div>
+    <div class="form-check form-switch mb-0 ms-1">
+      <input class="form-check-input" type="checkbox" id="wfFilter" />
+      <label class="form-check-label small fw-semibold" for="wfFilter" style="color: var(--brand)">
+        WF Staff only
+      </label>
+    </div>
+    <span class="text-muted small ms-auto" id="visibleCount"></span>
+  </div>
+
+  <!-- Table header row -->
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <p class="section-label mb-0">Directory</p>
+    <button class="btn btn-sm text-white fw-semibold"
+            style="background: var(--accent); border: none; border-radius: 20px"
+            onclick="openAddPerson()">
+      <i class="bi bi-person-plus-fill me-1"></i>Add Person
+    </button>
+  </div>
+
+  <div id="emptyState" class="empty-state d-none">
+    <i class="bi bi-person-x"></i>No people match your filters.
+  </div>
+
+  <div class="people-table table-responsive" id="tableWrap">
+    <table class="table mb-0" id="peopleTable">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th class="col-contact">Contact</th>
+          <th>Company / Title</th>
+          <th class="col-wf text-center">WF Staff</th>
+          <th style="width: 80px"></th>
+        </tr>
+      </thead>
+      <tbody id="peopleBody">
+        {% for p in people %}
+        <tr class="person-row"
+            data-id="{{ p.id }}"
+            data-first="{{ p.first_name }}"
+            data-last="{{ p.last_name }}"
+            data-email="{{ p.email }}"
+            data-phone="{{ p.phone_number }}"
+            data-company="{{ p.company }}"
+            data-title="{{ p.title }}"
+            data-wf="{{ p.is_watson_forsberg|yesno:'true,false' }}"
+            data-search="{{ p.name|lower }} {{ p.email|lower }} {{ p.company|lower }} {{ p.title|lower }}">
+          <td>
+            <div class="d-flex align-items-center gap-2">
+              <div class="avatar">{{ p.first_name|slice:":1" }}{{ p.last_name|slice:":1" }}</div>
+              <span class="fw-semibold">{{ p.name }}</span>
+            </div>
+          </td>
+          <td class="col-contact">
+            {% if p.email %}<a href="mailto:{{ p.email }}" class="d-block text-decoration-none text-muted small"><i class="bi bi-envelope me-1"></i>{{ p.email }}</a>{% endif %}
+            {% if p.phone_number %}<span class="d-block text-muted small"><i class="bi bi-telephone me-1"></i>{{ p.phone_number }}</span>{% endif %}
+          </td>
+          <td>
+            {% if p.company %}<span class="fw-semibold small">{{ p.company }}</span>{% endif %}
+            {% if p.title %}<br><span class="text-muted small">{{ p.title }}</span>{% endif %}
+          </td>
+          <td class="col-wf text-center">
+            {% if p.is_watson_forsberg %}<span class="wf-badge"><i class="bi bi-building me-1"></i>WF</span>{% endif %}
+          </td>
+          <td>
+            <button class="btn-action edit" title="Edit" onclick="openEditPerson(this)"><i class="bi bi-pencil"></i></button>
+            <button class="btn-action del" title="Delete" onclick="deletePerson({{ p.id }}, '{{ p.name|escapejs }}', this)"><i class="bi bi-trash3"></i></button>
+          </td>
+        </tr>
+        {% empty %}
+        <tr id="noDataRow"><td colspan="5" class="text-center text-muted py-4">No people on record yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══ Add Person Modal ══ -->
+<div class="modal fade" id="addPersonModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-person-plus me-2"></i>Add Person</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-6">
+            <label class="form-label small fw-semibold">First Name</label>
+            <input id="apFirst" type="text" class="form-control" />
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-semibold">Last Name</label>
+            <input id="apLast" type="text" class="form-control" />
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Email</label>
+            <input id="apEmail" type="email" class="form-control" />
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Phone</label>
+            <input id="apPhone" type="text" class="form-control" />
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Company</label>
+            <input id="apCompany" type="text" class="form-control" />
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Title</label>
+            <input id="apTitle" type="text" class="form-control" />
+          </div>
+          <div class="col-12">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="apWF" />
+              <label class="form-check-label small" for="apWF">Watson Forsberg staff</label>
+            </div>
+          </div>
+        </div>
+        <div id="apError" class="alert alert-danger mt-3 d-none py-2"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-sm text-white fw-semibold" style="background: var(--brand)" onclick="submitAddPerson()">
+          <i class="bi bi-check-lg me-1"></i>Add Person
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Edit Person Modal ══ -->
+<div class="modal fade" id="editPersonModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-pencil-square me-2"></i>Edit Person</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="epId" />
+        <div class="row g-3">
+          <div class="col-6">
+            <label class="form-label small fw-semibold">First Name</label>
+            <input id="epFirst" type="text" class="form-control" />
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-semibold">Last Name</label>
+            <input id="epLast" type="text" class="form-control" />
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Email</label>
+            <input id="epEmail" type="email" class="form-control" />
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Phone</label>
+            <input id="epPhone" type="text" class="form-control" />
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Company</label>
+            <input id="epCompany" type="text" class="form-control" />
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Title</label>
+            <input id="epTitle" type="text" class="form-control" />
+          </div>
+          <div class="col-12">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="epWF" />
+              <label class="form-check-label small" for="epWF">Watson Forsberg staff</label>
+            </div>
+          </div>
+        </div>
+        <div id="epError" class="alert alert-danger mt-3 d-none py-2"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-sm text-white fw-semibold" style="background: var(--brand)" onclick="submitEditPerson()">
+          <i class="bi bi-check-lg me-1"></i>Save Changes
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  function getCsrf() {
+    const m = document.cookie.match(/csrftoken=([^;]+)/);
+    return m ? m[1] : '';
+  }
+  function postJSON(url, body) {
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+      body: JSON.stringify(body),
+    });
+  }
+
+  // ── Filter ──
+  function applyFilters() {
+    const q = document.getElementById('searchInput').value.toLowerCase().trim();
+    const wfOnly = document.getElementById('wfFilter').checked;
+    let visible = 0;
+    document.querySelectorAll('.person-row').forEach(row => {
+      const matchText = !q || row.dataset.search.includes(q);
+      const matchWF   = !wfOnly || row.dataset.wf === 'true';
+      const show = matchText && matchWF;
+      row.style.display = show ? '' : 'none';
+      if (show) visible++;
+    });
+    const total = document.querySelectorAll('.person-row').length;
+    document.getElementById('visibleCount').textContent =
+      visible === total ? `${total} people` : `${visible} of ${total}`;
+    document.getElementById('emptyState').classList.toggle('d-none', visible > 0 || total === 0);
+    document.getElementById('tableWrap').classList.toggle('d-none', visible === 0 && total > 0);
+  }
+  document.getElementById('searchInput').addEventListener('input', applyFilters);
+  document.getElementById('wfFilter').addEventListener('change', applyFilters);
+  applyFilters();
+
+  // ── Build a table row from a person object ──
+  function buildRow(p) {
+    const initials = (p.first_name[0] || '') + (p.last_name[0] || '');
+    const wfBadge = p.is_watson_forsberg
+      ? '<span class="wf-badge"><i class="bi bi-building me-1"></i>WF</span>' : '';
+    const emailLink = p.email
+      ? `<a href="mailto:${p.email}" class="d-block text-decoration-none text-muted small"><i class="bi bi-envelope me-1"></i>${p.email}</a>` : '';
+    const phoneSpan = p.phone_number
+      ? `<span class="d-block text-muted small"><i class="bi bi-telephone me-1"></i>${p.phone_number}</span>` : '';
+    const company = p.company ? `<span class="fw-semibold small">${p.company}</span>` : '';
+    const title   = p.title   ? `<br><span class="text-muted small">${p.title}</span>` : '';
+    const searchStr = `${p.name} ${p.email} ${p.company} ${p.title}`.toLowerCase();
+
+    const tr = document.createElement('tr');
+    tr.className = 'person-row';
+    tr.dataset.id      = p.id;
+    tr.dataset.first   = p.first_name;
+    tr.dataset.last    = p.last_name;
+    tr.dataset.email   = p.email;
+    tr.dataset.phone   = p.phone_number;
+    tr.dataset.company = p.company;
+    tr.dataset.title   = p.title;
+    tr.dataset.wf      = p.is_watson_forsberg ? 'true' : 'false';
+    tr.dataset.search  = searchStr;
+    tr.innerHTML = `
+      <td>
+        <div class="d-flex align-items-center gap-2">
+          <div class="avatar">${initials.toUpperCase()}</div>
+          <span class="fw-semibold">${p.name}</span>
+        </div>
+      </td>
+      <td class="col-contact">${emailLink}${phoneSpan}</td>
+      <td>${company}${title}</td>
+      <td class="col-wf text-center">${wfBadge}</td>
+      <td>
+        <button class="btn-action edit" title="Edit" onclick="openEditPerson(this)"><i class="bi bi-pencil"></i></button>
+        <button class="btn-action del" title="Delete" onclick="deletePerson(${p.id}, '${p.name.replace(/'/g, "\\'")}', this)"><i class="bi bi-trash3"></i></button>
+      </td>`;
+    return tr;
+  }
+
+  // ── Add Person ──
+  const addModal = new bootstrap.Modal(document.getElementById('addPersonModal'));
+
+  function openAddPerson() {
+    ['apFirst','apLast','apEmail','apPhone','apCompany','apTitle'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('apWF').checked = false;
+    document.getElementById('apError').classList.add('d-none');
+    addModal.show();
+  }
+
+  async function submitAddPerson() {
+    const errEl = document.getElementById('apError');
+    errEl.classList.add('d-none');
+    const first = document.getElementById('apFirst').value.trim();
+    const last  = document.getElementById('apLast').value.trim();
+    if (!first && !last) {
+      errEl.textContent = 'Please enter at least a first or last name.';
+      errEl.classList.remove('d-none');
+      return;
+    }
+    const res = await postJSON('/people/create/', {
+      first_name: first, last_name: last,
+      email: document.getElementById('apEmail').value.trim(),
+      phone_number: document.getElementById('apPhone').value.trim(),
+      company: document.getElementById('apCompany').value.trim(),
+      title: document.getElementById('apTitle').value.trim(),
+      is_watson_forsberg: document.getElementById('apWF').checked,
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      errEl.textContent = data.error || 'Failed to add person.';
+      errEl.classList.remove('d-none');
+      return;
+    }
+    const person = await res.json();
+    addModal.hide();
+    const noData = document.getElementById('noDataRow');
+    if (noData) noData.remove();
+    const row = buildRow(person);
+    document.getElementById('peopleBody').prepend(row);
+    applyFilters();
+  }
+
+  // ── Edit Person ──
+  const editModal = new bootstrap.Modal(document.getElementById('editPersonModal'));
+
+  function openEditPerson(btn) {
+    const row = btn.closest('tr');
+    document.getElementById('epId').value      = row.dataset.id;
+    document.getElementById('epFirst').value   = row.dataset.first;
+    document.getElementById('epLast').value    = row.dataset.last;
+    document.getElementById('epEmail').value   = row.dataset.email;
+    document.getElementById('epPhone').value   = row.dataset.phone;
+    document.getElementById('epCompany').value = row.dataset.company;
+    document.getElementById('epTitle').value   = row.dataset.title;
+    document.getElementById('epWF').checked    = row.dataset.wf === 'true';
+    document.getElementById('epError').classList.add('d-none');
+    editModal.show();
+  }
+
+  async function submitEditPerson() {
+    const errEl = document.getElementById('epError');
+    errEl.classList.add('d-none');
+    const id    = document.getElementById('epId').value;
+    const first = document.getElementById('epFirst').value.trim();
+    const last  = document.getElementById('epLast').value.trim();
+    if (!first && !last) {
+      errEl.textContent = 'Please enter at least a first or last name.';
+      errEl.classList.remove('d-none');
+      return;
+    }
+    const res = await postJSON(`/people/${id}/update/`, {
+      first_name: first, last_name: last,
+      email: document.getElementById('epEmail').value.trim(),
+      phone_number: document.getElementById('epPhone').value.trim(),
+      company: document.getElementById('epCompany').value.trim(),
+      title: document.getElementById('epTitle').value.trim(),
+      is_watson_forsberg: document.getElementById('epWF').checked,
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      errEl.textContent = data.error || 'Failed to save changes.';
+      errEl.classList.remove('d-none');
+      return;
+    }
+    const person = await res.json();
+    editModal.hide();
+    const row = document.querySelector(`.person-row[data-id="${id}"]`);
+    const newRow = buildRow(person);
+    row.replaceWith(newRow);
+    applyFilters();
+  }
+
+  // ── Delete Person ──
+  async function deletePerson(id, name, btn) {
+    if (!confirm(`Remove "${name}" from the system? This cannot be undone.`)) return;
+    const res = await postJSON(`/people/${id}/delete/`, {});
+    if (!res.ok) { alert('Failed to delete person.'); return; }
+    btn.closest('tr').remove();
+    applyFilters();
+  }
+</script>
+{% endblock %}

@@ -1,0 +1,1184 @@
+{% extends "base.html" %}
+
+{% block title %}Events — Watson Forsberg{% endblock %}
+{% block nav_active_events %}active{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* ── Event cards ── */
+  .event-card {
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .event-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.13);
+  }
+  .event-card .card-header {
+    background: var(--brand);
+    color: #fff;
+    border-radius: 12px 12px 0 0 !important;
+    padding: 0.9rem 1.2rem;
+  }
+  .event-card.past .card-header { background: #6c757d; }
+  .event-date { font-size: 0.8rem; opacity: 0.8; }
+  .event-card .card-title { font-size: 1.05rem; font-weight: 600; margin: 0; }
+
+  .badge-client {
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.7rem;
+    border-radius: 20px;
+    padding: 0.25em 0.75em;
+  }
+  .meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.2rem;
+    font-size: 0.84rem;
+    color: #555;
+  }
+  .meta-row i { color: var(--brand-light); }
+  .budget-pill { font-size: 0.76rem; border-radius: 20px; padding: 0.2em 0.75em; }
+  .btn-guests {
+    font-size: 0.78rem;
+    border-radius: 20px;
+    color: var(--brand);
+    border-color: var(--brand);
+  }
+  .btn-guests:hover { background: var(--brand); color: #fff; }
+
+  /* ── Guest modal ── */
+  #guestModal .modal-header,
+  #newPersonModal .modal-header,
+  #eventCreateModal .modal-header { background: var(--brand); color: #fff; }
+  #guestModal .modal-header .btn-close,
+  #newPersonModal .modal-header .btn-close,
+  #eventCreateModal .modal-header .btn-close { filter: invert(1); }
+
+  .guest-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--brand-light);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.78rem;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .guest-row td { vertical-align: middle; font-size: 0.84rem; }
+
+  /* ── Typeahead ── */
+  .typeahead-wrap { position: relative; }
+  .typeahead-list {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 1055;
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+    max-height: 240px;
+    overflow-y: auto;
+    display: none;
+  }
+  .typeahead-list.show { display: block; }
+  .typeahead-item {
+    padding: 0.55rem 0.9rem;
+    cursor: pointer;
+    font-size: 0.88rem;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .typeahead-item:last-child { border-bottom: none; }
+  .typeahead-item:hover, .typeahead-item.active { background: #eef1fc; }
+  .typeahead-item .meta { font-size: 0.75rem; color: #888; }
+  .typeahead-new {
+    padding: 0.55rem 0.9rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: var(--brand);
+    font-weight: 600;
+    border-top: 1px solid #e9ecef;
+  }
+  .typeahead-new:hover { background: #eef1fc; }
+
+  /* ── Status buttons ── */
+  .status-btn {
+    border: none;
+    background: none;
+    padding: 0;
+    cursor: pointer;
+    font-size: 1.1rem;
+    transition: transform 0.1s;
+  }
+  .status-btn:hover { transform: scale(1.2); }
+  .status-on { color: #198754; }
+  .status-off { color: #ced4da; }
+</style>
+{% endblock %}
+
+{% block hero %}
+<div class="page-hero">
+  <div class="container">
+    <h1><i class="bi bi-calendar-event-fill me-2"></i>All Events</h1>
+    <p class="mb-0">Browse, search, and manage every event — past and upcoming.</p>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <!-- Search -->
+  <div class="filter-bar mb-4">
+    <div class="input-group" style="max-width: 420px">
+      <span class="input-group-text bg-white border-end-0" style="border-radius: 30px 0 0 30px">
+        <i class="bi bi-search text-muted"></i>
+      </span>
+      <input id="searchInput" type="text" class="form-control border-start-0"
+             placeholder="Search events, clients, locations…"
+             style="border-radius: 0 30px 30px 0" />
+    </div>
+  </div>
+
+  <!-- ── Upcoming ── -->
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <p class="section-label mb-0">Upcoming Events</p>
+    <button class="btn btn-sm text-white fw-semibold"
+            style="background: var(--accent); border: none; border-radius: 20px"
+            onclick="openEventCreate()">
+      <i class="bi bi-plus-lg me-1"></i>New Event
+    </button>
+  </div>
+  {% if upcoming_events %}
+  <div class="row g-3 mb-5" id="upcomingGrid">
+    {% for event in upcoming_events %}{% include "partials/event_card.html" with upcoming=True %}{% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state mb-5" id="upcomingEmpty">
+    <i class="bi bi-calendar-x"></i>No upcoming events scheduled.
+  </div>
+  {% endif %}
+
+  <!-- ── Past ── -->
+  <p class="section-label mb-3">Past Events</p>
+  {% if past_events %}
+  <div class="row g-3 mb-5">
+    {% for event in past_events reversed %}{% include "partials/event_card.html" with upcoming=False %}{% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state mb-5">
+    <i class="bi bi-calendar-check"></i>No past events on record.
+  </div>
+  {% endif %}
+</div>
+
+<!-- ══════════════════════════════════════════
+     EVENT DETAIL MODAL
+══════════════════════════════════════════ -->
+<div class="modal fade" id="eventDetailModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header" id="edHeader" style="color:#fff">
+        <div class="flex-grow-1 me-2">
+          <h5 class="modal-title fw-bold mb-1" id="edTitle"></h5>
+          <div id="edBadges" class="d-flex flex-wrap gap-2"></div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter:invert(1)"></button>
+      </div>
+      <div class="modal-body">
+
+        <!-- Date / time row -->
+        <div class="d-flex flex-wrap gap-4 mb-4 pb-3 border-bottom" id="edInfoRow"></div>
+
+        <!-- Location / Map -->
+        <div id="edLocationSection" class="mb-4 d-none">
+          <p class="fw-semibold small text-uppercase mb-2" style="letter-spacing:.08em;color:var(--brand)">
+            <i class="bi bi-geo-alt-fill me-1"></i>Location
+          </p>
+          <div id="edMapContainer" class="d-none" style="height:260px;border-radius:10px;overflow:hidden;border:1px solid #dee2e6;"></div>
+          <div id="edLocationFallback" class="d-none text-muted" style="font-size:.92rem;"></div>
+        </div>
+
+        <!-- Description -->
+        <div id="edDescSection" class="mb-4 d-none">
+          <p class="fw-semibold small text-uppercase mb-2" style="letter-spacing:.08em;color:var(--brand)">
+            <i class="bi bi-text-paragraph me-1"></i>Description
+          </p>
+          <p id="edDesc" class="mb-0 text-muted" style="font-size:.9rem;line-height:1.65;white-space:pre-line"></p>
+        </div>
+
+        <!-- Stats grid -->
+        <div id="edStatsSection" class="mb-4 d-none">
+          <p class="fw-semibold small text-uppercase mb-2" style="letter-spacing:.08em;color:var(--brand)">
+            <i class="bi bi-bar-chart-fill me-1"></i>Details
+          </p>
+          <div class="row g-2" id="edStats"></div>
+        </div>
+
+        <!-- Notes -->
+        <div id="edNotesSection" class="d-none">
+          <p class="fw-semibold small text-uppercase mb-2" style="letter-spacing:.08em;color:var(--brand)">
+            <i class="bi bi-sticky-fill me-1"></i>Internal Notes
+          </p>
+          <div id="edNotes" class="rounded-3 p-3" style="background:#f8f9fc;font-size:.88rem;color:#555;line-height:1.6;white-space:pre-line"></div>
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+        <button class="btn btn-sm btn-outline btn-guests" id="edGuestsBtn">
+          <i class="bi bi-people-fill me-1"></i>Guests
+        </button>
+        <button class="btn btn-sm btn-outline btn-guests" id="edEditBtn">
+          <i class="bi bi-pencil me-1"></i>Edit
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     GUEST LIST / EDITOR MODAL
+══════════════════════════════════════════ -->
+<div class="modal fade" id="guestModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h5 class="modal-title mb-0" id="guestModalTitle">Guest List</h5>
+          <small id="guestModalSubtitle" class="opacity-75"></small>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Summary counts -->
+        <div id="guestSummary" class="d-flex flex-wrap gap-2 mb-3"></div>
+
+        <!-- Add guest bar -->
+        <div class="card border-0 bg-light rounded-3 p-3 mb-3">
+          <p class="fw-semibold mb-2 small text-uppercase" style="letter-spacing: 0.06em; color: var(--brand)">
+            <i class="bi bi-person-plus-fill me-1"></i>Add Guest
+          </p>
+          <div class="typeahead-wrap">
+            <input id="personSearch" type="text" class="form-control"
+                   placeholder="Start typing a name to search or create a person…"
+                   autocomplete="off" />
+            <div class="typeahead-list" id="personDropdown"></div>
+          </div>
+        </div>
+
+        <!-- Guest filter -->
+        <input id="guestFilter" type="text" class="form-control mb-3"
+               placeholder="Filter guests by name, company, title…"
+               style="border-radius: 20px; font-size: 0.85rem" />
+
+        <!-- Loading / empty -->
+        <div id="guestLoading" class="text-center py-5 text-muted d-none">
+          <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+        </div>
+        <div id="guestEmpty" class="empty-state d-none">
+          <i class="bi bi-person-x"></i>No guests on record for this event.
+        </div>
+
+        <!-- Table -->
+        <div id="guestTableWrap" class="table-responsive d-none">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">
+              <tr>
+                <th>Guest</th>
+                <th>Contact</th>
+                <th>Company / Title</th>
+                <th class="text-center">To Invite</th>
+                <th class="text-center">Invited</th>
+                <th class="text-center">Coming</th>
+                <th class="text-center">Registered</th>
+                <th class="text-center">Attended</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="guestTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="modal-footer justify-content-start">
+        <small class="text-muted" id="guestCount"></small>
+        <button class="btn btn-secondary btn-sm ms-auto" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     NEW PERSON MODAL
+══════════════════════════════════════════ -->
+<div class="modal fade" id="newPersonModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-person-plus me-2"></i>New Person</h5>
+        <button type="button" class="btn-close" onclick="cancelNewPerson()"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-6">
+            <label class="form-label small fw-semibold">First Name</label>
+            <input id="npFirstName" type="text" class="form-control" />
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-semibold">Last Name</label>
+            <input id="npLastName" type="text" class="form-control" />
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Email</label>
+            <input id="npEmail" type="email" class="form-control" />
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Phone</label>
+            <input id="npPhone" type="text" class="form-control" />
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Company</label>
+            <input id="npCompany" type="text" class="form-control" />
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Title</label>
+            <input id="npTitle" type="text" class="form-control" />
+          </div>
+          <div class="col-12">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="npWF" />
+              <label class="form-check-label small" for="npWF">Watson Forsberg staff</label>
+            </div>
+          </div>
+        </div>
+        <div id="npError" class="alert alert-danger mt-3 d-none py-2"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" onclick="cancelNewPerson()">Cancel</button>
+        <button class="btn btn-sm text-white fw-semibold" style="background: var(--brand)" onclick="submitNewPerson()">
+          <i class="bi bi-check-lg me-1"></i>Create &amp; Add
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     EVENT CREATE MODAL
+══════════════════════════════════════════ -->
+<div class="modal fade" id="eventCreateModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-calendar-plus me-2"></i>New Event</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Event Name <span class="text-danger">*</span></label>
+            <input id="ecName" type="text" class="form-control" placeholder="e.g. Annual Gala 2026" />
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Date <span class="text-danger">*</span></label>
+            <input id="ecDate" type="date" class="form-control" />
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Time</label>
+            <input id="ecTime" type="time" class="form-control" />
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Location</label>
+            <input id="ecLocation" type="text" class="form-control" placeholder="Venue or address" />
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Client</label>
+            <select id="ecClient" class="form-select">
+              <option value="">— None —</option>
+            </select>
+            <div id="ecNewClientRow" class="mt-1 d-none">
+              <div class="input-group input-group-sm">
+                <input id="ecNewClientName" type="text" class="form-control" placeholder="New client name" />
+                <button class="btn btn-outline-secondary" type="button" onclick="submitNewClient('ec')">Create</button>
+                <button class="btn btn-outline-secondary" type="button" onclick="toggleNewClient('ec')">✕</button>
+              </div>
+              <div id="ecNewClientError" class="text-danger small mt-1 d-none"></div>
+            </div>
+            <button type="button" id="ecNewClientBtn" class="btn btn-link btn-sm p-0 mt-1" style="font-size:.78rem;" onclick="toggleNewClient('ec')">
+              <i class="bi bi-plus-circle me-1"></i>New client
+            </button>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Registrations Due</label>
+            <input id="ecRegDue" type="date" class="form-control" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small fw-semibold">Tickets</label>
+            <input id="ecTickets" type="number" min="0" class="form-control" placeholder="—" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small fw-semibold">Proposed Budget ($)</label>
+            <input id="ecProposed" type="number" min="0" step="0.01" class="form-control" placeholder="—" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small fw-semibold">Approved Budget ($)</label>
+            <input id="ecApproved" type="number" min="0" step="0.01" class="form-control" placeholder="—" />
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Description</label>
+            <textarea id="ecDescription" class="form-control" rows="3" placeholder="Public-facing description"></textarea>
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Internal Notes</label>
+            <textarea id="ecNotes" class="form-control" rows="2" placeholder="Internal notes only"></textarea>
+          </div>
+        </div>
+        <div id="ecError" class="alert alert-danger mt-3 d-none py-2"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-sm text-white fw-semibold" style="background: var(--brand)" onclick="submitEventCreate()">
+          <i class="bi bi-check-lg me-1"></i>Create Event
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     EVENT EDIT MODAL
+══════════════════════════════════════════ -->
+<div class="modal fade" id="eventEditModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-pencil-square me-2"></i>Edit Event</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="eeId" />
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Event Name <span class="text-danger">*</span></label>
+            <input id="eeName" type="text" class="form-control" />
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Date <span class="text-danger">*</span></label>
+            <input id="eeDate" type="date" class="form-control" />
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Time</label>
+            <input id="eeTime" type="time" class="form-control" />
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Location</label>
+            <input id="eeLocation" type="text" class="form-control" />
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Client</label>
+            <select id="eeClient" class="form-select">
+              <option value="">— None —</option>
+            </select>
+            <div id="eeNewClientRow" class="mt-1 d-none">
+              <div class="input-group input-group-sm">
+                <input id="eeNewClientName" type="text" class="form-control" placeholder="New client name" />
+                <button class="btn btn-outline-secondary" type="button" onclick="submitNewClient('ee')">Create</button>
+                <button class="btn btn-outline-secondary" type="button" onclick="toggleNewClient('ee')">✕</button>
+              </div>
+              <div id="eeNewClientError" class="text-danger small mt-1 d-none"></div>
+            </div>
+            <button type="button" id="eeNewClientBtn" class="btn btn-link btn-sm p-0 mt-1" style="font-size:.78rem;" onclick="toggleNewClient('ee')">
+              <i class="bi bi-plus-circle me-1"></i>New client
+            </button>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Registrations Due</label>
+            <input id="eeRegDue" type="date" class="form-control" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small fw-semibold">Tickets</label>
+            <input id="eeTickets" type="number" min="0" class="form-control" placeholder="—" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small fw-semibold">Proposed Budget ($)</label>
+            <input id="eeProposed" type="number" min="0" step="0.01" class="form-control" placeholder="—" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small fw-semibold">Approved Budget ($)</label>
+            <input id="eeApproved" type="number" min="0" step="0.01" class="form-control" placeholder="—" />
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Description</label>
+            <textarea id="eeDescription" class="form-control" rows="3"></textarea>
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Internal Notes</label>
+            <textarea id="eeNotes" class="form-control" rows="2"></textarea>
+          </div>
+        </div>
+        <div id="eeError" class="alert alert-danger mt-3 d-none py-2"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-sm text-white fw-semibold" style="background: var(--brand)" onclick="submitEventEdit()">
+          <i class="bi bi-check-lg me-1"></i>Update Event
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // ══ CSRF helper ══
+  function getCsrf() {
+    const m = document.cookie.match(/csrftoken=([^;]+)/);
+    return m ? m[1] : "";
+  }
+
+  function postJSON(url, body) {
+    return fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrf() },
+      body: JSON.stringify(body),
+    });
+  }
+
+  // ══ Event card search ══
+  document.getElementById("searchInput").addEventListener("input", function () {
+    const q = this.value.toLowerCase().trim();
+    document.querySelectorAll(".event-item").forEach((el) => {
+      el.style.display = el.textContent.toLowerCase().includes(q) ? "" : "none";
+    });
+  });
+
+  // ══════════════════════════════════════════
+  //  GUEST MODAL
+  // ══════════════════════════════════════════
+  let currentEventId = null;
+  let allGuests = [];
+  const guestModal = new bootstrap.Modal(document.getElementById("guestModal"));
+
+  function initials(name) {
+    return (name || "?").split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase();
+  }
+
+  function buildSummary(guests) {
+    const t = guests.length,
+      inv = guests.filter((g) => g.invited).length,
+      com = guests.filter((g) => g.able_to_come).length,
+      reg = guests.filter((g) => g.registered).length,
+      att = guests.filter((g) => g.attended).length;
+    document.getElementById("guestSummary").innerHTML = [
+      ["bi-people", "Total", t, "bg-primary-subtle text-primary border-primary-subtle"],
+      ["bi-envelope-check", "Invited", inv, "bg-info-subtle text-info border-info-subtle"],
+      ["bi-hand-thumbs-up-fill", "Coming", com, "bg-success-subtle text-success border-success-subtle"],
+      ["bi-pencil-square", "Registered", reg, "bg-warning-subtle text-warning border-warning-subtle"],
+      ["bi-star-fill", "Attended", att, "bg-secondary-subtle text-secondary border-secondary-subtle"],
+    ]
+      .map(([ic, lb, ct, cls]) =>
+        `<span class="badge border rounded-pill px-3 py-2 ${cls}" style="font-size:.78rem;">
+         <i class="bi ${ic} me-1"></i>${lb}: <strong>${ct}</strong>
+       </span>`)
+      .join("");
+  }
+
+  function statusBtn(personId, field, value) {
+    const on = value ? "status-on" : "status-off";
+    const ico = value ? "bi-check-circle-fill" : "bi-circle";
+    return `<button class="status-btn ${on}" data-pid="${personId}" data-field="${field}"
+                onclick="toggleStatus(this)" title="${field}">
+          <i class="bi ${ico}"></i>
+        </button>`;
+  }
+
+  function renderGuests(guests) {
+    const wrap = document.getElementById("guestTableWrap");
+    const empty = document.getElementById("guestEmpty");
+    const count = document.getElementById("guestCount");
+    if (!guests.length) {
+      wrap.classList.add("d-none");
+      empty.classList.remove("d-none");
+      count.textContent = "";
+      return;
+    }
+    empty.classList.add("d-none");
+    wrap.classList.remove("d-none");
+    count.textContent = `Showing ${guests.length} guest${guests.length !== 1 ? "s" : ""}`;
+
+    document.getElementById("guestTableBody").innerHTML = guests
+      .map((g) => `
+  <tr class="guest-row" data-pid="${g.person_id}">
+    <td>
+      <div class="d-flex align-items-center gap-2">
+        <div class="guest-avatar">${initials(g.name)}</div>
+        <span class="fw-semibold">${g.name}</span>
+      </div>
+    </td>
+    <td>
+      ${g.email ? `<a href="mailto:${g.email}" class="d-block text-decoration-none small"><i class="bi bi-envelope me-1 text-muted"></i>${g.email}</a>` : ""}
+      ${g.phone ? `<span class="d-block small text-muted"><i class="bi bi-telephone me-1"></i>${g.phone}</span>` : ""}
+    </td>
+    <td>
+      ${g.company ? `<span class="fw-semibold small">${g.company}</span>` : ""}
+      ${g.title ? `<br><span class="text-muted small">${g.title}</span>` : ""}
+    </td>
+    <td class="text-center">${statusBtn(g.person_id, "to_invite", g.to_invite)}</td>
+    <td class="text-center">${statusBtn(g.person_id, "invited", g.invited)}</td>
+    <td class="text-center">${statusBtn(g.person_id, "able_to_come", g.able_to_come)}</td>
+    <td class="text-center">${statusBtn(g.person_id, "registered", g.registered)}</td>
+    <td class="text-center">${statusBtn(g.person_id, "attended", g.attended)}</td>
+    <td>
+      <button class="btn btn-link btn-sm text-danger p-0" title="Remove guest"
+              onclick="removeGuest(${g.person_id})">
+        <i class="bi bi-trash3"></i>
+      </button>
+    </td>
+  </tr>`)
+      .join("");
+  }
+
+  async function openGuests(eventId, eventName) {
+    currentEventId = eventId;
+    document.getElementById("guestModalTitle").textContent = eventName;
+    document.getElementById("guestModalSubtitle").textContent = "";
+    document.getElementById("guestSummary").innerHTML = "";
+    document.getElementById("guestTableBody").innerHTML = "";
+    document.getElementById("guestFilter").value = "";
+    document.getElementById("personSearch").value = "";
+    document.getElementById("personDropdown").classList.remove("show");
+    document.getElementById("guestCount").textContent = "";
+    document.getElementById("guestLoading").classList.remove("d-none");
+    document.getElementById("guestTableWrap").classList.add("d-none");
+    document.getElementById("guestEmpty").classList.add("d-none");
+    guestModal.show();
+    await reloadGuests();
+  }
+
+  async function reloadGuests() {
+    document.getElementById("guestLoading").classList.remove("d-none");
+    document.getElementById("guestTableWrap").classList.add("d-none");
+    try {
+      const res = await fetch(`/events/${currentEventId}/guests/`);
+      const data = await res.json();
+      allGuests = data.guests;
+      document.getElementById("guestLoading").classList.add("d-none");
+      document.getElementById("guestModalSubtitle").textContent =
+        `${allGuests.length} guest${allGuests.length !== 1 ? "s" : ""} on record`;
+      buildSummary(allGuests);
+      renderGuests(applyGuestFilter(allGuests));
+    } catch {
+      document.getElementById("guestLoading").classList.add("d-none");
+      document.getElementById("guestEmpty").innerHTML =
+        '<i class="bi bi-exclamation-triangle"></i> Failed to load guests.';
+      document.getElementById("guestEmpty").classList.remove("d-none");
+    }
+  }
+
+  function applyGuestFilter(guests) {
+    const q = document.getElementById("guestFilter").value.toLowerCase().trim();
+    return q
+      ? guests.filter((g) => [g.name, g.company, g.title, g.email].some((f) => f && f.toLowerCase().includes(q)))
+      : guests;
+  }
+
+  document.getElementById("guestFilter").addEventListener("input", () => {
+    renderGuests(applyGuestFilter(allGuests));
+  });
+
+  async function toggleStatus(btn) {
+    const personId = btn.dataset.pid;
+    const field = btn.dataset.field;
+    const guest = allGuests.find((g) => g.person_id == personId);
+    if (!guest) return;
+    const newVal = !guest[field];
+    guest[field] = newVal;
+    btn.className = `status-btn ${newVal ? "status-on" : "status-off"}`;
+    btn.innerHTML = `<i class="bi ${newVal ? "bi-check-circle-fill" : "bi-circle"}"></i>`;
+    await postJSON(`/events/${currentEventId}/guests/${personId}/update/`, { [field]: newVal });
+    buildSummary(allGuests);
+  }
+
+  async function removeGuest(personId) {
+    if (!confirm("Remove this guest from the event?")) return;
+    await postJSON(`/events/${currentEventId}/guests/${personId}/remove/`, {});
+    allGuests = allGuests.filter((g) => g.person_id !== personId);
+    buildSummary(allGuests);
+    renderGuests(applyGuestFilter(allGuests));
+    document.getElementById("guestModalSubtitle").textContent =
+      `${allGuests.length} guest${allGuests.length !== 1 ? "s" : ""} on record`;
+  }
+
+  // ══ Person typeahead ══
+  let typeaheadTimer = null;
+  let pendingName = "";
+
+  document.getElementById("personSearch").addEventListener("input", function () {
+    const q = this.value.trim();
+    pendingName = q;
+    clearTimeout(typeaheadTimer);
+    if (!q) { closeDropdown(); return; }
+    typeaheadTimer = setTimeout(() => fetchPeople(q), 220);
+  });
+
+  document.getElementById("personSearch").addEventListener("keydown", function (e) {
+    const list = document.getElementById("personDropdown");
+    const items = list.querySelectorAll(".typeahead-item");
+    const active = list.querySelector(".typeahead-item.active");
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const next = active ? active.nextElementSibling : items[0];
+      if (next && next.classList.contains("typeahead-item")) {
+        active && active.classList.remove("active");
+        next.classList.add("active");
+      }
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const prev = active && active.previousElementSibling;
+      if (prev && prev.classList.contains("typeahead-item")) {
+        active.classList.remove("active");
+        prev.classList.add("active");
+      }
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const act = list.querySelector(".typeahead-item.active");
+      if (act) act.click();
+    } else if (e.key === "Escape") {
+      closeDropdown();
+    }
+  });
+
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".typeahead-wrap")) closeDropdown();
+  });
+
+  function closeDropdown() {
+    document.getElementById("personDropdown").classList.remove("show");
+  }
+
+  async function fetchPeople(q) {
+    const res = await fetch(`/people/search/?q=${encodeURIComponent(q)}`);
+    const people = await res.json();
+    const dd = document.getElementById("personDropdown");
+    dd.innerHTML = people
+      .map((p) => `
+  <div class="typeahead-item" onclick="addExistingGuest(${p.id}, '${p.name.replace(/'/g, "\\'")}')">
+    <strong>${p.name}</strong>
+    ${p.company || p.title ? `<div class="meta">${[p.title, p.company].filter(Boolean).join(" · ")}</div>` : ""}
+  </div>`)
+      .join("");
+    dd.innerHTML += `<div class="typeahead-new" onclick="openNewPerson('${q.replace(/'/g, "\\'")}')">
+  <i class="bi bi-plus-circle me-1"></i>Create "<strong>${q}</strong>"
+</div>`;
+    dd.classList.add("show");
+  }
+
+  async function addExistingGuest(personId, name) {
+    closeDropdown();
+    document.getElementById("personSearch").value = "";
+    const already = allGuests.find((g) => g.person_id === personId);
+    if (already) { alert(`${name} is already on the guest list.`); return; }
+    const res = await postJSON(`/events/${currentEventId}/guests/add/`, { person_id: personId });
+    const data = await res.json();
+    allGuests.push(data);
+    buildSummary(allGuests);
+    renderGuests(applyGuestFilter(allGuests));
+    document.getElementById("guestModalSubtitle").textContent =
+      `${allGuests.length} guest${allGuests.length !== 1 ? "s" : ""} on record`;
+  }
+
+  // ══ New Person modal ══
+  const newPersonModal = new bootstrap.Modal(document.getElementById("newPersonModal"));
+
+  function openNewPerson(prefill) {
+    closeDropdown();
+    document.getElementById("npFirstName").value = "";
+    document.getElementById("npLastName").value = "";
+    document.getElementById("npEmail").value = "";
+    document.getElementById("npPhone").value = "";
+    document.getElementById("npCompany").value = "";
+    document.getElementById("npTitle").value = "";
+    document.getElementById("npWF").checked = false;
+    document.getElementById("npError").classList.add("d-none");
+    if (prefill) {
+      const parts = prefill.trim().split(/\s+/);
+      document.getElementById("npFirstName").value = parts[0] || "";
+      document.getElementById("npLastName").value = parts.slice(1).join(" ");
+    }
+    newPersonModal.show();
+  }
+
+  function cancelNewPerson() {
+    newPersonModal.hide();
+    document.getElementById("personSearch").focus();
+  }
+
+  async function submitNewPerson() {
+    const errEl = document.getElementById("npError");
+    errEl.classList.add("d-none");
+    const first = document.getElementById("npFirstName").value.trim();
+    const last = document.getElementById("npLastName").value.trim();
+    if (!first && !last) {
+      errEl.textContent = "Please enter at least a first or last name.";
+      errEl.classList.remove("d-none");
+      return;
+    }
+    const res = await postJSON("/people/create/", {
+      first_name: first, last_name: last,
+      email: document.getElementById("npEmail").value.trim(),
+      phone_number: document.getElementById("npPhone").value.trim(),
+      company: document.getElementById("npCompany").value.trim(),
+      title: document.getElementById("npTitle").value.trim(),
+      is_watson_forsberg: document.getElementById("npWF").checked,
+    });
+    const person = await res.json();
+    newPersonModal.hide();
+    await addExistingGuest(person.id, person.name);
+  }
+
+  // ══════════════════════════════════════════
+  //  EVENT CREATE MODAL
+  // ══════════════════════════════════════════
+  const eventCreateModal = new bootstrap.Modal(document.getElementById("eventCreateModal"));
+
+  async function openEventCreate() {
+    ["ecName","ecDate","ecTime","ecLocation","ecRegDue","ecTickets","ecProposed","ecApproved","ecDescription","ecNotes"]
+      .forEach((id) => (document.getElementById(id).value = ""));
+    document.getElementById("ecError").classList.add("d-none");
+    document.getElementById("ecNewClientRow").classList.add("d-none");
+    document.getElementById("ecNewClientBtn").classList.remove("d-none");
+    const sel = document.getElementById("ecClient");
+    sel.innerHTML = '<option value="">— None —</option>';
+    try {
+      const res = await fetch("/clients/");
+      const clients = await res.json();
+      clients.forEach((c) => {
+        const opt = document.createElement("option");
+        opt.value = c.id;
+        opt.textContent = c.name;
+        sel.appendChild(opt);
+      });
+    } catch { /* clients optional */ }
+    eventCreateModal.show();
+  }
+
+  async function submitEventCreate() {
+    const errEl = document.getElementById("ecError");
+    errEl.classList.add("d-none");
+    const name = document.getElementById("ecName").value.trim();
+    const date = document.getElementById("ecDate").value;
+    if (!name || !date) {
+      errEl.textContent = "Event name and date are required.";
+      errEl.classList.remove("d-none");
+      return;
+    }
+    const res = await postJSON("/events/create/", {
+      name, date,
+      time: document.getElementById("ecTime").value || null,
+      location: document.getElementById("ecLocation").value.trim(),
+      client_id: document.getElementById("ecClient").value || null,
+      registrations_due: document.getElementById("ecRegDue").value || null,
+      num_tickets: document.getElementById("ecTickets").value || null,
+      proposed_amount: document.getElementById("ecProposed").value || null,
+      approved_amount: document.getElementById("ecApproved").value || null,
+      description: document.getElementById("ecDescription").value.trim(),
+      notes: document.getElementById("ecNotes").value.trim(),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      errEl.textContent = data.error || "Failed to create event.";
+      errEl.classList.remove("d-none");
+      return;
+    }
+    eventCreateModal.hide();
+    window.location.reload();
+  }
+
+  // ══════════════════════════════════════════
+  //  NEW CLIENT INLINE
+  // ══════════════════════════════════════════
+  function toggleNewClient(prefix) {
+    const row = document.getElementById(prefix + "NewClientRow");
+    const btn = document.getElementById(prefix + "NewClientBtn");
+    const isHidden = row.classList.contains("d-none");
+    row.classList.toggle("d-none", !isHidden);
+    btn.classList.toggle("d-none", isHidden);
+    if (isHidden) {
+      document.getElementById(prefix + "NewClientName").value = "";
+      document.getElementById(prefix + "NewClientError").classList.add("d-none");
+      document.getElementById(prefix + "NewClientName").focus();
+    }
+  }
+
+  async function submitNewClient(prefix) {
+    const input = document.getElementById(prefix + "NewClientName");
+    const errEl = document.getElementById(prefix + "NewClientError");
+    const name = input.value.trim();
+    errEl.classList.add("d-none");
+    if (!name) {
+      errEl.textContent = "Client name is required.";
+      errEl.classList.remove("d-none");
+      return;
+    }
+    const res = await postJSON("/clients/create/", { name });
+    if (!res.ok) {
+      const data = await res.json();
+      errEl.textContent = data.error || "Failed to create client.";
+      errEl.classList.remove("d-none");
+      return;
+    }
+    const client = await res.json();
+    const sel = document.getElementById(prefix + "Client");
+    const opt = document.createElement("option");
+    opt.value = client.id;
+    opt.textContent = client.name;
+    sel.appendChild(opt);
+    sel.value = client.id;
+    toggleNewClient(prefix);
+  }
+
+  // ══════════════════════════════════════════
+  //  EVENT EDIT MODAL
+  // ══════════════════════════════════════════
+  const eventEditModal = new bootstrap.Modal(document.getElementById("eventEditModal"));
+
+  async function openEventEdit(btn) {
+    const d = btn.dataset;
+    document.getElementById("eeId").value = d.id;
+    document.getElementById("eeName").value = d.name;
+    document.getElementById("eeDate").value = d.date;
+    document.getElementById("eeTime").value = d.time || "";
+    document.getElementById("eeLocation").value = d.location;
+    document.getElementById("eeRegDue").value = d.regDue || "";
+    document.getElementById("eeTickets").value = d.tickets || "";
+    document.getElementById("eeProposed").value = d.proposed || "";
+    document.getElementById("eeApproved").value = d.approved || "";
+    document.getElementById("eeDescription").value = d.description;
+    document.getElementById("eeNotes").value = d.notes;
+    document.getElementById("eeError").classList.add("d-none");
+    document.getElementById("eeNewClientRow").classList.add("d-none");
+    document.getElementById("eeNewClientBtn").classList.remove("d-none");
+    const sel = document.getElementById("eeClient");
+    sel.innerHTML = '<option value="">— None —</option>';
+    try {
+      const res = await fetch("/clients/");
+      const clients = await res.json();
+      clients.forEach((c) => {
+        const opt = document.createElement("option");
+        opt.value = c.id;
+        opt.textContent = c.name;
+        sel.appendChild(opt);
+      });
+    } catch { /* clients optional */ }
+    sel.value = d.client || "";
+    eventEditModal.show();
+  }
+
+  async function submitEventEdit() {
+    const errEl = document.getElementById("eeError");
+    errEl.classList.add("d-none");
+    const id = document.getElementById("eeId").value;
+    const name = document.getElementById("eeName").value.trim();
+    const date = document.getElementById("eeDate").value;
+    if (!name || !date) {
+      errEl.textContent = "Event name and date are required.";
+      errEl.classList.remove("d-none");
+      return;
+    }
+    const res = await postJSON(`/events/${id}/update/`, {
+      name, date,
+      time: document.getElementById("eeTime").value || null,
+      location: document.getElementById("eeLocation").value.trim(),
+      client_id: document.getElementById("eeClient").value || null,
+      registrations_due: document.getElementById("eeRegDue").value || null,
+      num_tickets: document.getElementById("eeTickets").value || null,
+      proposed_amount: document.getElementById("eeProposed").value || null,
+      approved_amount: document.getElementById("eeApproved").value || null,
+      description: document.getElementById("eeDescription").value.trim(),
+      notes: document.getElementById("eeNotes").value.trim(),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      errEl.textContent = data.error || "Failed to update event.";
+      errEl.classList.remove("d-none");
+      return;
+    }
+    eventEditModal.hide();
+    window.location.reload();
+  }
+
+  // ══════════════════════════════════════════
+  //  EVENT DETAIL MODAL
+  // ══════════════════════════════════════════
+  const MAPS_API_KEY = "{{ google_maps_api_key|escapejs }}";
+  const eventDetailModal = new bootstrap.Modal(document.getElementById('eventDetailModal'));
+  let _pendingMap = null;
+  let _mapsApiLoaded = false;
+  let _mapsApiPromise = null;
+
+  document.getElementById('eventDetailModal').addEventListener('shown.bs.modal', () => {
+    if (_pendingMap) {
+      const { location, container, fallback } = _pendingMap;
+      _pendingMap = null;
+      resolveLocation(location, container, fallback);
+    }
+  });
+
+  function loadMapsApi() {
+    if (_mapsApiLoaded) return Promise.resolve();
+    if (_mapsApiPromise) return _mapsApiPromise;
+    _mapsApiPromise = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = `https://maps.googleapis.com/maps/api/js?key=${MAPS_API_KEY}`;
+      s.onload = () => { _mapsApiLoaded = true; resolve(); };
+      s.onerror = () => reject(new Error('Maps API failed to load'));
+      document.head.appendChild(s);
+    });
+    return _mapsApiPromise;
+  }
+
+  function resolveLocation(location, container, fallback) {
+    if (MAPS_API_KEY) {
+      loadMapsApi().then(() => {
+        new google.maps.Geocoder().geocode({ address: location }, (results, status) => {
+          if (status === 'OK') {
+            container.classList.remove('d-none');
+            const map = new google.maps.Map(container, {
+              center: results[0].geometry.location,
+              zoom: 15,
+              mapTypeControl: false,
+              streetViewControl: false,
+              fullscreenControl: false,
+            });
+            new google.maps.Marker({ map, position: results[0].geometry.location, title: location });
+            showLocationText(location, fallback);
+          } else {
+            showLocationText(location, fallback);
+          }
+        });
+      }).catch(() => showLocationText(location, fallback));
+    } else {
+      showLocationText(location, fallback);
+    }
+  }
+
+  function showLocationText(location, fallback) {
+    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
+    fallback.innerHTML =
+      `<i class="bi bi-geo-alt me-1"></i>${location}` +
+      `<a href="${mapsUrl}" target="_blank" rel="noopener"
+          class="ms-2 small text-decoration-none" style="color:var(--brand)">
+         <i class="bi bi-box-arrow-up-right me-1"></i>Open in Maps
+       </a>`;
+    fallback.classList.remove('d-none');
+  }
+
+  function openEventDetail(card) {
+    const editBtn = card.querySelector('[data-id]');
+    if (!editBtn) return;
+    const d = editBtn.dataset;
+    const clientBadge = card.querySelector('.badge-client');
+    const clientName = clientBadge ? clientBadge.textContent.trim() : '';
+    const isUpcoming = !card.classList.contains('past');
+
+    // Header colour
+    document.getElementById('edHeader').style.background = isUpcoming ? 'var(--brand)' : '#6c757d';
+    document.getElementById('edTitle').textContent = d.name;
+    document.getElementById('edBadges').innerHTML = clientName
+      ? `<span class="badge" style="background:var(--accent);font-size:.7rem;border-radius:20px;padding:.25em .75em">${clientName}</span>`
+      : '';
+
+    // Date / time row
+    const dateFmt = d.date
+      ? new Date(d.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+      : '';
+    let infoHtml = `<span class="d-flex align-items-center gap-1"><i class="bi bi-calendar3 text-muted"></i><strong>${dateFmt}</strong></span>`;
+    if (d.time) {
+      const [h, m] = d.time.split(':');
+      const t = new Date();
+      t.setHours(+h, +m, 0);
+      infoHtml += `<span class="d-flex align-items-center gap-1"><i class="bi bi-clock text-muted"></i>${t.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>`;
+    }
+    document.getElementById('edInfoRow').innerHTML = infoHtml;
+
+    // Location
+    const locSection = document.getElementById('edLocationSection');
+    const mapContainer = document.getElementById('edMapContainer');
+    const locFallback = document.getElementById('edLocationFallback');
+    mapContainer.classList.add('d-none');
+    mapContainer.innerHTML = '';
+    locFallback.classList.add('d-none');
+    locFallback.innerHTML = '';
+    if (d.location) {
+      locSection.classList.remove('d-none');
+      _pendingMap = { location: d.location, container: mapContainer, fallback: locFallback };
+    } else {
+      locSection.classList.add('d-none');
+      _pendingMap = null;
+    }
+
+    // Description
+    const descSection = document.getElementById('edDescSection');
+    if (d.description) {
+      descSection.classList.remove('d-none');
+      document.getElementById('edDesc').textContent = d.description;
+    } else {
+      descSection.classList.add('d-none');
+    }
+
+    // Stats grid
+    const statsSection = document.getElementById('edStatsSection');
+    const statItems = [];
+    if (d.proposed) statItems.push(['bi-currency-dollar',        'Proposed', `$${parseFloat(d.proposed).toLocaleString()}`]);
+    if (d.approved) statItems.push(['bi-check-circle-fill',      'Approved', `$${parseFloat(d.approved).toLocaleString()}`]);
+    if (d.tickets)  statItems.push(['bi-ticket-perforated-fill', 'Tickets',  d.tickets]);
+    if (d.regDue)   statItems.push(['bi-hourglass-split',        'Reg. Due',
+      new Date(d.regDue + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })]);
+    if (statItems.length) {
+      statsSection.classList.remove('d-none');
+      document.getElementById('edStats').innerHTML = statItems.map(([ic, lb, val]) => `
+        <div class="col-6 col-md-3">
+          <div class="rounded-3 p-3 text-center" style="background:#f0f3fc">
+            <i class="bi ${ic} mb-1 d-block" style="color:var(--brand);font-size:1.2rem"></i>
+            <div class="fw-bold" style="color:var(--brand-dark)">${val}</div>
+            <div class="text-muted small">${lb}</div>
+          </div>
+        </div>`).join('');
+    } else {
+      statsSection.classList.add('d-none');
+    }
+
+    // Notes
+    const notesSection = document.getElementById('edNotesSection');
+    if (d.notes) {
+      notesSection.classList.remove('d-none');
+      document.getElementById('edNotes').textContent = d.notes;
+    } else {
+      notesSection.classList.add('d-none');
+    }
+
+    // Guests / Edit buttons in footer
+    const evId = d.id, evName = d.name;
+    document.getElementById('edGuestsBtn').onclick = () => {
+      eventDetailModal.hide();
+      openGuests(evId, evName);
+    };
+    document.getElementById('edEditBtn').onclick = () => {
+      eventDetailModal.hide();
+      openEventEdit(editBtn);
+    };
+
+    eventDetailModal.show();
+  }
+</script>
+{% endblock %}
