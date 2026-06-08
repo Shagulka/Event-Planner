@@ -64,9 +64,31 @@
   .btn-action.del:hover   { background: #fde8ea; }
 
   #addPersonModal .modal-header,
-  #editPersonModal .modal-header { background: var(--brand); color: #fff; }
+  #editPersonModal .modal-header,
+  #personDetailModal .modal-header { background: var(--brand); color: #fff; }
   #addPersonModal .modal-header .btn-close,
-  #editPersonModal .modal-header .btn-close { filter: invert(1); }
+  #editPersonModal .modal-header .btn-close,
+  #personDetailModal .modal-header .btn-close { filter: invert(1); }
+
+  .pd-section-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--brand);
+    margin-bottom: 0.5rem;
+  }
+  .event-status-dot {
+    width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex-shrink: 0;
+  }
+  .person-row { cursor: pointer; }
+
+  .pd-status-btn {
+    background: none; border: none; padding: 0.1rem 0.3rem;
+    cursor: pointer; font-size: 1.05rem; border-radius: 6px;
+    transition: background 0.12s, transform 0.1s;
+  }
+  .pd-status-btn:hover { background: #eef1fc; transform: scale(1.15); }
 
   @media (max-width: 576px) {
     .col-contact, .col-wf { display: none; }
@@ -102,7 +124,15 @@
         WF Staff only
       </label>
     </div>
-    <span class="text-muted small ms-auto" id="visibleCount"></span>
+    <div class="filter-bar ms-auto">
+      <select id="sortSelect" class="form-select form-select-sm" style="min-width: 170px">
+        <option value="last-asc">Last name A–Z</option>
+        <option value="last-desc">Last name Z–A</option>
+        <option value="first-asc">First name A–Z</option>
+        <option value="company-asc">Company A–Z</option>
+      </select>
+    </div>
+    <span class="text-muted small" id="visibleCount"></span>
   </div>
 
   <!-- Table header row -->
@@ -132,20 +162,32 @@
       </thead>
       <tbody id="peopleBody">
         {% for p in people %}
+        {% with company_str=p.company.all|join:", " client_id=p.company.first.id|default:"" %}
         <tr class="person-row"
             data-id="{{ p.id }}"
             data-first="{{ p.first_name }}"
             data-last="{{ p.last_name }}"
             data-email="{{ p.email }}"
             data-phone="{{ p.phone_number }}"
-            data-company="{{ p.company }}"
+            data-company="{{ company_str }}"
+            data-client-id="{{ client_id }}"
             data-title="{{ p.title }}"
             data-wf="{{ p.is_watson_forsberg|yesno:'true,false' }}"
-            data-search="{{ p.name|lower }} {{ p.email|lower }} {{ p.company|lower }} {{ p.title|lower }}">
+            data-notes="{{ p.notes|escapejs }}"
+            data-pending-invite="{{ p.has_pending_invite|yesno:'true,false' }}"
+            data-search="{{ p.name|lower }} {{ p.email|lower }} {{ company_str|lower }} {{ p.title|lower }}"
+            onclick="openPersonDetail(this)">
           <td>
             <div class="d-flex align-items-center gap-2">
               <div class="avatar">{{ p.first_name|slice:":1" }}{{ p.last_name|slice:":1" }}</div>
-              <span class="fw-semibold">{{ p.name }}</span>
+              <div>
+                <span class="fw-semibold">{{ p.name }}</span>
+                {% if p.has_pending_invite %}
+                <span class="ms-2 badge rounded-pill" style="background:#e8a020;color:#fff;font-size:.65rem;vertical-align:middle">
+                  <i class="bi bi-clock me-1"></i>Invite pending
+                </span>
+                {% endif %}
+              </div>
             </div>
           </td>
           <td class="col-contact">
@@ -153,17 +195,18 @@
             {% if p.phone_number %}<span class="d-block text-muted small"><i class="bi bi-telephone me-1"></i>{{ p.phone_number }}</span>{% endif %}
           </td>
           <td>
-            {% if p.company %}<span class="fw-semibold small">{{ p.company }}</span>{% endif %}
+            {% if company_str %}<span class="fw-semibold small">{{ company_str }}</span>{% endif %}
             {% if p.title %}<br><span class="text-muted small">{{ p.title }}</span>{% endif %}
           </td>
           <td class="col-wf text-center">
             {% if p.is_watson_forsberg %}<span class="wf-badge"><i class="bi bi-building me-1"></i>WF</span>{% endif %}
           </td>
           <td>
-            <button class="btn-action edit" title="Edit" onclick="openEditPerson(this)"><i class="bi bi-pencil"></i></button>
-            <button class="btn-action del" title="Delete" onclick="deletePerson({{ p.id }}, '{{ p.name|escapejs }}', this)"><i class="bi bi-trash3"></i></button>
+            <button class="btn-action edit" title="Edit" onclick="event.stopPropagation(); openEditPerson(this)"><i class="bi bi-pencil"></i></button>
+            <button class="btn-action del" title="Delete" onclick="event.stopPropagation(); deletePerson({{ p.id }}, '{{ p.name|escapejs }}', this)"><i class="bi bi-trash3"></i></button>
           </td>
         </tr>
+        {% endwith %}
         {% empty %}
         <tr id="noDataRow"><td colspan="5" class="text-center text-muted py-4">No people on record yet.</td></tr>
         {% endfor %}
@@ -199,8 +242,21 @@
             <input id="apPhone" type="text" class="form-control" />
           </div>
           <div class="col-12">
-            <label class="form-label small fw-semibold">Company</label>
-            <input id="apCompany" type="text" class="form-control" />
+            <label class="form-label small fw-semibold">Company (Client)</label>
+            <select id="apClient" class="form-select">
+              <option value="">— None —</option>
+            </select>
+            <div id="apNewClientRow" class="mt-1 d-none">
+              <div class="input-group input-group-sm">
+                <input id="apNewClientName" type="text" class="form-control" placeholder="New client name" />
+                <button class="btn btn-outline-secondary" type="button" onclick="submitNewClient('ap')">Create</button>
+                <button class="btn btn-outline-secondary" type="button" onclick="toggleNewClient('ap')">✕</button>
+              </div>
+              <div id="apNewClientError" class="text-danger small mt-1 d-none"></div>
+            </div>
+            <button type="button" id="apNewClientBtn" class="btn btn-link btn-sm p-0 mt-1" style="font-size:.78rem" onclick="toggleNewClient('ap')">
+              <i class="bi bi-plus-circle me-1"></i>New client
+            </button>
           </div>
           <div class="col-12">
             <label class="form-label small fw-semibold">Title</label>
@@ -212,6 +268,10 @@
               <label class="form-check-label small" for="apWF">Watson Forsberg staff</label>
             </div>
           </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Internal Notes</label>
+            <textarea id="apNotes" class="form-control" rows="2" placeholder="Private notes…"></textarea>
+          </div>
         </div>
         <div id="apError" class="alert alert-danger mt-3 d-none py-2"></div>
       </div>
@@ -219,6 +279,85 @@
         <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
         <button class="btn btn-sm text-white fw-semibold" style="background: var(--brand)" onclick="submitAddPerson()">
           <i class="bi bi-check-lg me-1"></i>Add Person
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Person Detail Modal ══ -->
+<div class="modal fade" id="personDetailModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="flex-grow-1 me-2">
+          <h5 class="modal-title fw-bold mb-1" id="pdName"></h5>
+          <div id="pdSubtitle" class="d-flex flex-wrap gap-2"></div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+
+        <!-- Contact info -->
+        <div class="mb-4">
+          <p class="pd-section-label"><i class="bi bi-person-lines-fill me-1"></i>Contact</p>
+          <div id="pdContact" class="d-flex flex-wrap gap-3" style="font-size:.9rem"></div>
+        </div>
+
+        <!-- Internal Notes -->
+        <div id="pdNotesSection" class="mb-4 d-none">
+          <p class="pd-section-label"><i class="bi bi-sticky-fill me-1"></i>Internal Notes</p>
+          <div id="pdNotes" class="rounded-3 p-3"
+               style="background:#f8f9fc;font-size:.88rem;color:#555;line-height:1.6;white-space:pre-line"></div>
+        </div>
+
+        <!-- Upcoming events -->
+        <div id="pdUpcomingSection" class="mb-4 d-none">
+          <p class="pd-section-label"><i class="bi bi-calendar-event me-1"></i>Upcoming Events</p>
+          <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0" style="font-size:.85rem">
+              <thead class="table-light">
+                <tr>
+                  <th>Event</th><th>Date</th><th>Client</th>
+                  <th class="text-center">Invited</th>
+                  <th class="text-center">Coming</th>
+                  <th class="text-center">Registered</th>
+                </tr>
+              </thead>
+              <tbody id="pdUpcomingBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Past events -->
+        <div id="pdPastSection" class="d-none">
+          <p class="pd-section-label"><i class="bi bi-clock-history me-1"></i>Past Events</p>
+          <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0" style="font-size:.85rem">
+              <thead class="table-light">
+                <tr>
+                  <th>Event</th><th>Date</th><th>Client</th>
+                  <th class="text-center">Invited</th>
+                  <th class="text-center">Registered</th>
+                </tr>
+              </thead>
+              <tbody id="pdPastBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="pdNoEvents" class="text-muted small text-center py-3 d-none">
+          No event history for this person.
+        </div>
+        <div id="pdLoading" class="text-center py-4 text-muted">
+          <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+        <button class="btn btn-sm btn-outline-primary" id="pdEditBtn">
+          <i class="bi bi-pencil me-1"></i>Edit
         </button>
       </div>
     </div>
@@ -253,8 +392,21 @@
             <input id="epPhone" type="text" class="form-control" />
           </div>
           <div class="col-12">
-            <label class="form-label small fw-semibold">Company</label>
-            <input id="epCompany" type="text" class="form-control" />
+            <label class="form-label small fw-semibold">Company (Client)</label>
+            <select id="epClient" class="form-select">
+              <option value="">— None —</option>
+            </select>
+            <div id="epNewClientRow" class="mt-1 d-none">
+              <div class="input-group input-group-sm">
+                <input id="epNewClientName" type="text" class="form-control" placeholder="New client name" />
+                <button class="btn btn-outline-secondary" type="button" onclick="submitNewClient('ep')">Create</button>
+                <button class="btn btn-outline-secondary" type="button" onclick="toggleNewClient('ep')">✕</button>
+              </div>
+              <div id="epNewClientError" class="text-danger small mt-1 d-none"></div>
+            </div>
+            <button type="button" id="epNewClientBtn" class="btn btn-link btn-sm p-0 mt-1" style="font-size:.78rem" onclick="toggleNewClient('ep')">
+              <i class="bi bi-plus-circle me-1"></i>New client
+            </button>
           </div>
           <div class="col-12">
             <label class="form-label small fw-semibold">Title</label>
@@ -265,6 +417,10 @@
               <input class="form-check-input" type="checkbox" id="epWF" />
               <label class="form-check-label small" for="epWF">Watson Forsberg staff</label>
             </div>
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Internal Notes</label>
+            <textarea id="epNotes" class="form-control" rows="2" placeholder="Private notes…"></textarea>
           </div>
         </div>
         <div id="epError" class="alert alert-danger mt-3 d-none py-2"></div>
@@ -294,27 +450,78 @@
     });
   }
 
-  // ── Filter ──
+  // ── Sort + Filter ──
+  function sortKey(row, sort) {
+    if (sort === 'last-desc') return (row.dataset.last || '').toLowerCase();
+    if (sort === 'first-asc') return (row.dataset.first || '').toLowerCase();
+    if (sort === 'company-asc') return (row.dataset.company || '￿').toLowerCase();
+    return (row.dataset.last || '').toLowerCase(); // last-asc default
+  }
+
   function applyFilters() {
-    const q = document.getElementById('searchInput').value.toLowerCase().trim();
+    const q      = document.getElementById('searchInput').value.toLowerCase().trim();
     const wfOnly = document.getElementById('wfFilter').checked;
+    const sort   = document.getElementById('sortSelect').value;
+    const tbody  = document.getElementById('peopleBody');
+    const rows   = Array.from(tbody.querySelectorAll('.person-row'));
+
+    rows.sort((a, b) => {
+      // Pending-invite rows always float to the top
+      const pa = a.dataset.pendingInvite === 'true' ? 0 : 1;
+      const pb = b.dataset.pendingInvite === 'true' ? 0 : 1;
+      if (pa !== pb) return pa - pb;
+
+      const ka = sortKey(a, sort);
+      const kb = sortKey(b, sort);
+      const cmp = ka.localeCompare(kb);
+      if (sort === 'last-desc') return -cmp;
+      if (cmp !== 0) return cmp;
+      // secondary sort: for last-name sorts add first-name; for first-name sort add last-name
+      if (sort === 'last-asc' || sort === 'last-desc') {
+        return (a.dataset.first || '').toLowerCase().localeCompare((b.dataset.first || '').toLowerCase());
+      }
+      return (a.dataset.last || '').toLowerCase().localeCompare((b.dataset.last || '').toLowerCase());
+    });
+
+    rows.forEach(r => tbody.appendChild(r));
+
     let visible = 0;
-    document.querySelectorAll('.person-row').forEach(row => {
+    rows.forEach(row => {
       const matchText = !q || row.dataset.search.includes(q);
       const matchWF   = !wfOnly || row.dataset.wf === 'true';
       const show = matchText && matchWF;
       row.style.display = show ? '' : 'none';
       if (show) visible++;
     });
-    const total = document.querySelectorAll('.person-row').length;
+
+    const total = rows.length;
     document.getElementById('visibleCount').textContent =
       visible === total ? `${total} people` : `${visible} of ${total}`;
     document.getElementById('emptyState').classList.toggle('d-none', visible > 0 || total === 0);
     document.getElementById('tableWrap').classList.toggle('d-none', visible === 0 && total > 0);
   }
+
   document.getElementById('searchInput').addEventListener('input', applyFilters);
   document.getElementById('wfFilter').addEventListener('change', applyFilters);
+  document.getElementById('sortSelect').addEventListener('change', applyFilters);
   applyFilters();
+
+  // ── Load clients into a <select> ──
+  async function loadClientSelect(selectId, selectedId) {
+    const sel = document.getElementById(selectId);
+    sel.innerHTML = '<option value="">— None —</option>';
+    try {
+      const res = await fetch('/clients/');
+      const clients = await res.json();
+      clients.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.name;
+        sel.appendChild(opt);
+      });
+    } catch { }
+    sel.value = selectedId || '';
+  }
 
   // ── Build a table row from a person object ──
   function buildRow(p) {
@@ -331,15 +538,18 @@
 
     const tr = document.createElement('tr');
     tr.className = 'person-row';
-    tr.dataset.id      = p.id;
-    tr.dataset.first   = p.first_name;
-    tr.dataset.last    = p.last_name;
-    tr.dataset.email   = p.email;
-    tr.dataset.phone   = p.phone_number;
-    tr.dataset.company = p.company;
-    tr.dataset.title   = p.title;
-    tr.dataset.wf      = p.is_watson_forsberg ? 'true' : 'false';
-    tr.dataset.search  = searchStr;
+    tr.dataset.id       = p.id;
+    tr.dataset.first    = p.first_name;
+    tr.dataset.last     = p.last_name;
+    tr.dataset.email    = p.email;
+    tr.dataset.phone    = p.phone_number;
+    tr.dataset.company  = p.company;
+    tr.dataset.clientId = p.client_id || '';
+    tr.dataset.title    = p.title;
+    tr.dataset.wf       = p.is_watson_forsberg ? 'true' : 'false';
+    tr.dataset.notes    = p.notes || '';
+    tr.dataset.search   = searchStr;
+    tr.setAttribute('onclick', 'openPersonDetail(this)');
     tr.innerHTML = `
       <td>
         <div class="d-flex align-items-center gap-2">
@@ -351,8 +561,8 @@
       <td>${company}${title}</td>
       <td class="col-wf text-center">${wfBadge}</td>
       <td>
-        <button class="btn-action edit" title="Edit" onclick="openEditPerson(this)"><i class="bi bi-pencil"></i></button>
-        <button class="btn-action del" title="Delete" onclick="deletePerson(${p.id}, '${p.name.replace(/'/g, "\\'")}', this)"><i class="bi bi-trash3"></i></button>
+        <button class="btn-action edit" title="Edit" onclick="event.stopPropagation();openEditPerson(this)"><i class="bi bi-pencil"></i></button>
+        <button class="btn-action del" title="Delete" onclick="event.stopPropagation();deletePerson(${p.id}, '${p.name.replace(/'/g, "\\'")}', this)"><i class="bi bi-trash3"></i></button>
       </td>`;
     return tr;
   }
@@ -360,10 +570,13 @@
   // ── Add Person ──
   const addModal = new bootstrap.Modal(document.getElementById('addPersonModal'));
 
-  function openAddPerson() {
-    ['apFirst','apLast','apEmail','apPhone','apCompany','apTitle'].forEach(id => document.getElementById(id).value = '');
+  async function openAddPerson() {
+    ['apFirst','apLast','apEmail','apPhone','apTitle','apNotes'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('apWF').checked = false;
     document.getElementById('apError').classList.add('d-none');
+    document.getElementById('apNewClientRow').classList.add('d-none');
+    document.getElementById('apNewClientBtn').classList.remove('d-none');
+    await loadClientSelect('apClient', '');
     addModal.show();
   }
 
@@ -381,9 +594,10 @@
       first_name: first, last_name: last,
       email: document.getElementById('apEmail').value.trim(),
       phone_number: document.getElementById('apPhone').value.trim(),
-      company: document.getElementById('apCompany').value.trim(),
+      client_id: document.getElementById('apClient').value || null,
       title: document.getElementById('apTitle').value.trim(),
       is_watson_forsberg: document.getElementById('apWF').checked,
+      notes: document.getElementById('apNotes').value,
     });
     if (!res.ok) {
       const data = await res.json();
@@ -403,17 +617,20 @@
   // ── Edit Person ──
   const editModal = new bootstrap.Modal(document.getElementById('editPersonModal'));
 
-  function openEditPerson(btn) {
+  async function openEditPerson(btn) {
     const row = btn.closest('tr');
-    document.getElementById('epId').value      = row.dataset.id;
-    document.getElementById('epFirst').value   = row.dataset.first;
-    document.getElementById('epLast').value    = row.dataset.last;
-    document.getElementById('epEmail').value   = row.dataset.email;
-    document.getElementById('epPhone').value   = row.dataset.phone;
-    document.getElementById('epCompany').value = row.dataset.company;
-    document.getElementById('epTitle').value   = row.dataset.title;
-    document.getElementById('epWF').checked    = row.dataset.wf === 'true';
+    document.getElementById('epId').value    = row.dataset.id;
+    document.getElementById('epFirst').value = row.dataset.first;
+    document.getElementById('epLast').value  = row.dataset.last;
+    document.getElementById('epEmail').value = row.dataset.email;
+    document.getElementById('epPhone').value = row.dataset.phone;
+    document.getElementById('epTitle').value = row.dataset.title;
+    document.getElementById('epWF').checked  = row.dataset.wf === 'true';
+    document.getElementById('epNotes').value = row.dataset.notes || '';
     document.getElementById('epError').classList.add('d-none');
+    document.getElementById('epNewClientRow').classList.add('d-none');
+    document.getElementById('epNewClientBtn').classList.remove('d-none');
+    await loadClientSelect('epClient', row.dataset.clientId || '');
     editModal.show();
   }
 
@@ -432,9 +649,10 @@
       first_name: first, last_name: last,
       email: document.getElementById('epEmail').value.trim(),
       phone_number: document.getElementById('epPhone').value.trim(),
-      company: document.getElementById('epCompany').value.trim(),
+      client_id: document.getElementById('epClient').value || null,
       title: document.getElementById('epTitle').value.trim(),
       is_watson_forsberg: document.getElementById('epWF').checked,
+      notes: document.getElementById('epNotes').value,
     });
     if (!res.ok) {
       const data = await res.json();
@@ -448,6 +666,48 @@
     const newRow = buildRow(person);
     row.replaceWith(newRow);
     applyFilters();
+    if (_pdCurrentId == id) openPersonDetail(document.querySelector(`.person-row[data-id="${id}"]`));
+  }
+
+  // ── Inline new-client creation ──
+  function toggleNewClient(prefix) {
+    const row = document.getElementById(prefix + 'NewClientRow');
+    const btn = document.getElementById(prefix + 'NewClientBtn');
+    const isHidden = row.classList.contains('d-none');
+    row.classList.toggle('d-none', !isHidden);
+    btn.classList.toggle('d-none', isHidden);
+    if (isHidden) {
+      document.getElementById(prefix + 'NewClientName').value = '';
+      document.getElementById(prefix + 'NewClientError').classList.add('d-none');
+      document.getElementById(prefix + 'NewClientName').focus();
+    }
+  }
+
+  async function submitNewClient(prefix) {
+    const input = document.getElementById(prefix + 'NewClientName');
+    const errEl = document.getElementById(prefix + 'NewClientError');
+    const name  = input.value.trim();
+    errEl.classList.add('d-none');
+    if (!name) {
+      errEl.textContent = 'Client name is required.';
+      errEl.classList.remove('d-none');
+      return;
+    }
+    const res = await postJSON('/clients/create/', { name });
+    if (!res.ok) {
+      const data = await res.json();
+      errEl.textContent = data.error || 'Failed to create client.';
+      errEl.classList.remove('d-none');
+      return;
+    }
+    const client = await res.json();
+    const sel = document.getElementById(prefix + 'Client');
+    const opt = document.createElement('option');
+    opt.value = client.id;
+    opt.textContent = client.name;
+    sel.appendChild(opt);
+    sel.value = client.id;
+    toggleNewClient(prefix);
   }
 
   // ── Delete Person ──
@@ -457,6 +717,137 @@
     if (!res.ok) { alert('Failed to delete person.'); return; }
     btn.closest('tr').remove();
     applyFilters();
+  }
+
+  // ── Person Detail Modal ──
+  const personDetailModal = new bootstrap.Modal(document.getElementById('personDetailModal'));
+  let _pdCurrentId = null;
+
+  function pdIcon(value) {
+    return value
+      ? '<i class="bi bi-check-circle-fill text-success"></i>'
+      : '<i class="bi bi-circle text-secondary opacity-50"></i>';
+  }
+
+  function pdDateFmt(iso) {
+    return new Date(iso + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  function pdEventRows(events, cols, clickable) {
+    return events.map(ev => {
+      const nameCell = clickable
+        ? `<td><a href="/events/?open=${ev.id}" class="fw-semibold text-decoration-none" style="color:inherit">${ev.name}</a></td>`
+        : `<td class="fw-semibold">${ev.name}</td>`;
+      const cells = [
+        nameCell,
+        `<td class="text-nowrap">${pdDateFmt(ev.date)}</td>`,
+        `<td>${ev.client || '<span class="text-muted">—</span>'}</td>`,
+      ];
+      cols.forEach(c => {
+        if (clickable) {
+          cells.push(`<td class="text-center">
+            <button class="pd-status-btn" title="Toggle ${c}"
+                    onclick="pdToggleStatus(${ev.id}, '${c}', ${!!ev[c]})">
+              ${pdIcon(ev[c])}
+            </button>
+          </td>`);
+        } else {
+          cells.push(`<td class="text-center">${pdIcon(ev[c])}</td>`);
+        }
+      });
+      return `<tr>${cells.join('')}</tr>`;
+    }).join('');
+  }
+
+  async function pdToggleStatus(eventId, field, currentVal) {
+    const newVal = !currentVal;
+    await postJSON(`/events/${eventId}/guests/${_pdCurrentId}/update/`, { [field]: newVal });
+    // Re-fetch to reflect server-side cascade (e.g. able_to_come sets invited)
+    try {
+      const res = await fetch(`/people/${_pdCurrentId}/detail/`);
+      const p = await res.json();
+      if (p.upcoming_events.length) {
+        document.getElementById('pdUpcomingSection').classList.remove('d-none');
+        document.getElementById('pdUpcomingBody').innerHTML =
+          pdEventRows(p.upcoming_events, ['invited','able_to_come','registered'], true);
+      }
+    } catch { /* leave table as-is on error */ }
+  }
+
+  async function openPersonDetail(row) {
+    const d = row.dataset;
+    _pdCurrentId = d.id;
+
+    // Header
+    document.getElementById('pdName').textContent = `${d.first} ${d.last}`.trim();
+    const badges = [];
+    if (d.wf === 'true') badges.push('<span class="badge rounded-pill" style="background:var(--accent);font-size:.7rem">WF Staff</span>');
+    if (d.company) badges.push(`<span class="badge rounded-pill bg-secondary-subtle text-secondary border" style="font-size:.7rem">${d.company}</span>`);
+    document.getElementById('pdSubtitle').innerHTML = badges.join('');
+
+    // Contact
+    const contacts = [];
+    if (d.email) contacts.push(`<a href="mailto:${d.email}" class="text-decoration-none"><i class="bi bi-envelope me-1 text-muted"></i>${d.email}</a>`);
+    if (d.phone) contacts.push(`<span><i class="bi bi-telephone me-1 text-muted"></i>${d.phone}</span>`);
+    if (d.title) contacts.push(`<span class="text-muted"><i class="bi bi-briefcase me-1"></i>${d.title}</span>`);
+    document.getElementById('pdContact').innerHTML = contacts.length
+      ? contacts.join('') : '<span class="text-muted small">No contact info on record.</span>';
+
+    // Notes (from dataset — fast path before fetch)
+    const notesSection = document.getElementById('pdNotesSection');
+    if (d.notes) {
+      notesSection.classList.remove('d-none');
+      document.getElementById('pdNotes').textContent = d.notes;
+    } else {
+      notesSection.classList.add('d-none');
+    }
+
+    // Reset event sections, show loading
+    ['pdUpcomingSection','pdPastSection','pdNoEvents'].forEach(id => document.getElementById(id).classList.add('d-none'));
+    document.getElementById('pdLoading').classList.remove('d-none');
+
+    // Edit button
+    document.getElementById('pdEditBtn').onclick = () => {
+      personDetailModal.hide();
+      const liveRow = document.querySelector(`.person-row[data-id="${d.id}"]`);
+      openEditPerson(liveRow.querySelector('.btn-action.edit'));
+    };
+
+    personDetailModal.show();
+
+    // Fetch full detail (events + fresh notes)
+    try {
+      const res = await fetch(`/people/${d.id}/detail/`);
+      const p = await res.json();
+      document.getElementById('pdLoading').classList.add('d-none');
+
+      // Refresh notes from server response
+      if (p.notes) {
+        notesSection.classList.remove('d-none');
+        document.getElementById('pdNotes').textContent = p.notes;
+      } else {
+        notesSection.classList.add('d-none');
+      }
+
+      if (p.upcoming_events.length) {
+        document.getElementById('pdUpcomingSection').classList.remove('d-none');
+        document.getElementById('pdUpcomingBody').innerHTML =
+          pdEventRows(p.upcoming_events, ['invited','able_to_come','registered'], true);
+      }
+
+      if (p.past_events.length) {
+        document.getElementById('pdPastSection').classList.remove('d-none');
+        document.getElementById('pdPastBody').innerHTML =
+          pdEventRows(p.past_events, ['invited','registered']);
+      }
+
+      if (!p.upcoming_events.length && !p.past_events.length) {
+        document.getElementById('pdNoEvents').classList.remove('d-none');
+      }
+    } catch {
+      document.getElementById('pdLoading').innerHTML =
+        '<i class="bi bi-exclamation-triangle text-warning me-1"></i>Failed to load event history.';
+    }
   }
 </script>
 {% endblock %}

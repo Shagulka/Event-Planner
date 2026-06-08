@@ -1,0 +1,586 @@
+{% extends "base.html" %}
+
+{% block title %}Companies — Watson Forsberg{% endblock %}
+{% block nav_active_companies %}active{% endblock %}
+
+{% block extra_css %}
+<style>
+  .filter-bar select { border-radius: 30px; padding-left: 1.1rem; }
+
+  .companies-table {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+    overflow: hidden;
+  }
+  .companies-table thead {
+    background: var(--brand);
+    color: #fff;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+  }
+  .companies-table thead th { padding: 0.85rem 1rem; border: none; font-weight: 600; }
+  .companies-table tbody tr { font-size: 0.88rem; border-bottom: 1px solid #f0f1f5; cursor: pointer; }
+  .companies-table tbody tr:last-child { border-bottom: none; }
+  .companies-table tbody tr:hover { background: #f8f9fc; }
+  .companies-table tbody td { padding: 0.75rem 1rem; vertical-align: middle; }
+
+  .company-avatar {
+    width: 36px; height: 36px; border-radius: 8px;
+    background: var(--brand-light); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.75rem; font-weight: 700; flex-shrink: 0;
+  }
+
+  .btn-action {
+    border: none; background: none;
+    padding: 0.2rem 0.45rem; border-radius: 6px;
+    font-size: 0.95rem; line-height: 1; transition: background 0.12s;
+  }
+  .btn-action.edit  { color: var(--brand); }
+  .btn-action.edit:hover  { background: #eef1fc; }
+  .btn-action.del   { color: #dc3545; }
+  .btn-action.del:hover   { background: #fde8ea; }
+
+  #addCompanyModal .modal-header,
+  #editCompanyModal .modal-header,
+  #companyDetailModal .modal-header { background: var(--brand); color: #fff; }
+  #addCompanyModal .modal-header .btn-close,
+  #editCompanyModal .modal-header .btn-close,
+  #companyDetailModal .modal-header .btn-close { filter: invert(1); }
+
+  .cd-section-label {
+    font-size: 0.72rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--brand); margin-bottom: 0.5rem;
+  }
+
+  @media (max-width: 576px) {
+    .col-contact { display: none; }
+  }
+</style>
+{% endblock %}
+
+{% block hero %}
+<div class="page-hero">
+  <div class="container">
+    <h1><i class="bi bi-building me-2"></i>Companies</h1>
+    <p class="mb-0">Browse and manage all client organisations.</p>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+
+  <!-- Filter bar -->
+  <div class="d-flex flex-wrap align-items-center gap-3 mb-4">
+    <div class="input-group filter-bar" style="max-width: 380px">
+      <span class="input-group-text bg-white border-end-0" style="border-radius: 30px 0 0 30px">
+        <i class="bi bi-search text-muted"></i>
+      </span>
+      <input id="searchInput" type="text" class="form-control border-start-0"
+             placeholder="Search by name, email…"
+             style="border-radius: 0 30px 30px 0" />
+    </div>
+    <div class="filter-bar ms-auto">
+      <select id="sortSelect" class="form-select form-select-sm" style="min-width: 150px">
+        <option value="name-asc">Name A–Z</option>
+        <option value="name-desc">Name Z–A</option>
+      </select>
+    </div>
+    <span class="text-muted small" id="visibleCount"></span>
+  </div>
+
+  <!-- Table header row -->
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <p class="section-label mb-0">Companies</p>
+    <button class="btn btn-sm text-white fw-semibold"
+            style="background: var(--accent); border: none; border-radius: 20px"
+            onclick="openAddCompany()">
+      <i class="bi bi-building me-1"></i>Add Company
+    </button>
+  </div>
+
+  <div id="emptyState" class="empty-state d-none">
+    <i class="bi bi-building-x"></i>No companies match your filters.
+  </div>
+
+  <div class="companies-table table-responsive" id="tableWrap">
+    <table class="table mb-0" id="companiesTable">
+      <thead>
+        <tr>
+          <th>Company</th>
+          <th class="col-contact">Contact</th>
+          <th>Notes</th>
+          <th style="width: 80px"></th>
+        </tr>
+      </thead>
+      <tbody id="companiesBody">
+        {% for c in clients %}
+        <tr class="company-row"
+            data-id="{{ c.id }}"
+            data-name="{{ c.name }}"
+            data-email="{{ c.email }}"
+            data-phone="{{ c.phone }}"
+            data-notes="{{ c.notes|escapejs }}"
+            data-search="{{ c.name|lower }} {{ c.email|lower }}"
+            onclick="openCompanyDetail(this)">
+          <td>
+            <div class="d-flex align-items-center gap-2">
+              <div class="company-avatar">{{ c.name|slice:":2"|upper }}</div>
+              <span class="fw-semibold">{{ c.name }}</span>
+            </div>
+          </td>
+          <td class="col-contact">
+            {% if c.email %}<a href="mailto:{{ c.email }}" class="d-block text-decoration-none text-muted small"><i class="bi bi-envelope me-1"></i>{{ c.email }}</a>{% endif %}
+            {% if c.phone %}<span class="d-block text-muted small"><i class="bi bi-telephone me-1"></i>{{ c.phone }}</span>{% endif %}
+          </td>
+          <td class="text-muted small" style="max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+            {{ c.notes|truncatechars:80 }}
+          </td>
+          <td>
+            <button class="btn-action edit" title="Edit" onclick="event.stopPropagation(); openEditCompany(this)"><i class="bi bi-pencil"></i></button>
+            <button class="btn-action del"  title="Delete" onclick="event.stopPropagation(); deleteCompany({{ c.id }}, '{{ c.name|escapejs }}', this)"><i class="bi bi-trash3"></i></button>
+          </td>
+        </tr>
+        {% empty %}
+        <tr id="noDataRow"><td colspan="4" class="text-center text-muted py-4">No companies on record yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══ Company Detail Modal ══ -->
+<div class="modal fade" id="companyDetailModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold" id="cdName"></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+
+        <!-- Contact -->
+        <div class="mb-4">
+          <p class="cd-section-label"><i class="bi bi-telephone-fill me-1"></i>Contact</p>
+          <div id="cdContact" class="d-flex flex-wrap gap-3" style="font-size:.9rem"></div>
+        </div>
+
+        <!-- Notes -->
+        <div id="cdNotesSection" class="mb-4 d-none">
+          <p class="cd-section-label"><i class="bi bi-sticky-fill me-1"></i>Notes</p>
+          <div id="cdNotes" class="rounded-3 p-3"
+               style="background:#f8f9fc;font-size:.88rem;color:#555;line-height:1.6;white-space:pre-line"></div>
+        </div>
+
+        <!-- Loading -->
+        <div id="cdLoading" class="text-center py-4 text-muted">
+          <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+        </div>
+
+        <!-- People -->
+        <div id="cdPeopleSection" class="mb-4 d-none">
+          <p class="cd-section-label"><i class="bi bi-people-fill me-1"></i>People
+            <span id="cdPeopleCount" class="text-muted fw-normal ms-1" style="font-size:.85rem;text-transform:none;letter-spacing:0"></span>
+          </p>
+          <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0" style="font-size:.85rem">
+              <thead class="table-light">
+                <tr><th>Name</th><th>Title</th><th>Email</th><th>Phone</th></tr>
+              </thead>
+              <tbody id="cdPeopleBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div id="cdNoPeople" class="text-muted small mb-4 d-none">No people linked to this company.</div>
+
+        <!-- Upcoming Events -->
+        <div id="cdUpcomingSection" class="mb-4 d-none">
+          <p class="cd-section-label"><i class="bi bi-calendar-event me-1"></i>Upcoming Events</p>
+          <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0" style="font-size:.85rem">
+              <thead class="table-light">
+                <tr><th>Event</th><th>Date</th><th>Location</th></tr>
+              </thead>
+              <tbody id="cdUpcomingBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Past Events -->
+        <div id="cdPastSection" class="d-none">
+          <p class="cd-section-label"><i class="bi bi-clock-history me-1"></i>Past Events</p>
+          <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0" style="font-size:.85rem">
+              <thead class="table-light">
+                <tr><th>Event</th><th>Date</th><th>Location</th></tr>
+              </thead>
+              <tbody id="cdPastBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div id="cdNoEvents" class="text-muted small d-none">No events associated with this company.</div>
+
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+        <button class="btn btn-sm btn-outline-primary" id="cdEditBtn">
+          <i class="bi bi-pencil me-1"></i>Edit
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Add Company Modal ══ -->
+<div class="modal fade" id="addCompanyModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-building me-2"></i>Add Company</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Company Name <span class="text-danger">*</span></label>
+            <input id="acName" type="text" class="form-control" />
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Email</label>
+            <input id="acEmail" type="email" class="form-control" />
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Phone</label>
+            <input id="acPhone" type="text" class="form-control" />
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Notes</label>
+            <textarea id="acNotes" class="form-control" rows="3"></textarea>
+          </div>
+        </div>
+        <div id="acError" class="alert alert-danger mt-3 d-none py-2"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-sm text-white fw-semibold" style="background: var(--brand)" onclick="submitAddCompany()">
+          <i class="bi bi-check-lg me-1"></i>Add Company
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Edit Company Modal ══ -->
+<div class="modal fade" id="editCompanyModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-pencil-square me-2"></i>Edit Company</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="ecId" />
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Company Name <span class="text-danger">*</span></label>
+            <input id="ecName" type="text" class="form-control" />
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Email</label>
+            <input id="ecEmail" type="email" class="form-control" />
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Phone</label>
+            <input id="ecPhone" type="text" class="form-control" />
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Notes</label>
+            <textarea id="ecNotes" class="form-control" rows="3"></textarea>
+          </div>
+        </div>
+        <div id="ecError" class="alert alert-danger mt-3 d-none py-2"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-sm text-white fw-semibold" style="background: var(--brand)" onclick="submitEditCompany()">
+          <i class="bi bi-check-lg me-1"></i>Save Changes
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  function getCsrf() {
+    const m = document.cookie.match(/csrftoken=([^;]+)/);
+    return m ? m[1] : '';
+  }
+  function postJSON(url, body) {
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+      body: JSON.stringify(body),
+    });
+  }
+
+  // ── Sort + Filter ──
+  function applyFilters() {
+    const q    = document.getElementById('searchInput').value.toLowerCase().trim();
+    const sort = document.getElementById('sortSelect').value;
+    const tbody = document.getElementById('companiesBody');
+    const rows  = Array.from(tbody.querySelectorAll('.company-row'));
+
+    rows.sort((a, b) => {
+      const ka = (a.dataset.name || '').toLowerCase();
+      const kb = (b.dataset.name || '').toLowerCase();
+      return sort === 'name-desc' ? kb.localeCompare(ka) : ka.localeCompare(kb);
+    });
+    rows.forEach(r => tbody.appendChild(r));
+
+    let visible = 0;
+    rows.forEach(row => {
+      const show = !q || row.dataset.search.includes(q);
+      row.style.display = show ? '' : 'none';
+      if (show) visible++;
+    });
+
+    const total = rows.length;
+    document.getElementById('visibleCount').textContent =
+      visible === total ? `${total} compan${total === 1 ? 'y' : 'ies'}` : `${visible} of ${total}`;
+    document.getElementById('emptyState').classList.toggle('d-none', visible > 0 || total === 0);
+    document.getElementById('tableWrap').classList.toggle('d-none', visible === 0 && total > 0);
+  }
+
+  document.getElementById('searchInput').addEventListener('input', applyFilters);
+  document.getElementById('sortSelect').addEventListener('change', applyFilters);
+  applyFilters();
+
+  // ── Build row from API response ──
+  function buildRow(c) {
+    const initials = (c.name || '?').slice(0, 2).toUpperCase();
+    const emailHtml = c.email
+      ? `<a href="mailto:${c.email}" class="d-block text-decoration-none text-muted small"><i class="bi bi-envelope me-1"></i>${c.email}</a>` : '';
+    const phoneHtml = c.phone
+      ? `<span class="d-block text-muted small"><i class="bi bi-telephone me-1"></i>${c.phone}</span>` : '';
+    const notesPrev = c.notes
+      ? c.notes.replace(/</g, '&lt;').slice(0, 80) + (c.notes.length > 80 ? '…' : '') : '';
+    const esc = (s) => (s || '').replace(/'/g, "\\'");
+
+    const tr = document.createElement('tr');
+    tr.className = 'company-row';
+    tr.dataset.id     = c.id;
+    tr.dataset.name   = c.name;
+    tr.dataset.email  = c.email || '';
+    tr.dataset.phone  = c.phone || '';
+    tr.dataset.notes  = c.notes || '';
+    tr.dataset.search = `${(c.name||'').toLowerCase()} ${(c.email||'').toLowerCase()}`;
+    tr.setAttribute('onclick', 'openCompanyDetail(this)');
+    tr.innerHTML = `
+      <td>
+        <div class="d-flex align-items-center gap-2">
+          <div class="company-avatar">${initials}</div>
+          <span class="fw-semibold">${c.name}</span>
+        </div>
+      </td>
+      <td class="col-contact">${emailHtml}${phoneHtml}</td>
+      <td class="text-muted small" style="max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${notesPrev}</td>
+      <td>
+        <button class="btn-action edit" title="Edit" onclick="event.stopPropagation();openEditCompany(this)"><i class="bi bi-pencil"></i></button>
+        <button class="btn-action del"  title="Delete" onclick="event.stopPropagation();deleteCompany(${c.id},'${esc(c.name)}',this)"><i class="bi bi-trash3"></i></button>
+      </td>`;
+    return tr;
+  }
+
+  // ── Add Company ──
+  const addModal = new bootstrap.Modal(document.getElementById('addCompanyModal'));
+
+  function openAddCompany() {
+    ['acName','acEmail','acPhone','acNotes'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('acError').classList.add('d-none');
+    addModal.show();
+  }
+
+  async function submitAddCompany() {
+    const errEl = document.getElementById('acError');
+    errEl.classList.add('d-none');
+    const name = document.getElementById('acName').value.trim();
+    if (!name) {
+      errEl.textContent = 'Company name is required.';
+      errEl.classList.remove('d-none');
+      return;
+    }
+    const res = await postJSON('/clients/create/', {
+      name,
+      email: document.getElementById('acEmail').value.trim(),
+      phone: document.getElementById('acPhone').value.trim(),
+      notes: document.getElementById('acNotes').value,
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      errEl.textContent = data.error || 'Failed to add company.';
+      errEl.classList.remove('d-none');
+      return;
+    }
+    const company = await res.json();
+    addModal.hide();
+    const noData = document.getElementById('noDataRow');
+    if (noData) noData.remove();
+    document.getElementById('companiesBody').prepend(buildRow(company));
+    applyFilters();
+  }
+
+  // ── Edit Company ──
+  const editModal = new bootstrap.Modal(document.getElementById('editCompanyModal'));
+
+  function openEditCompany(btn) {
+    const row = btn.closest('tr');
+    document.getElementById('ecId').value    = row.dataset.id;
+    document.getElementById('ecName').value  = row.dataset.name;
+    document.getElementById('ecEmail').value = row.dataset.email;
+    document.getElementById('ecPhone').value = row.dataset.phone;
+    document.getElementById('ecNotes').value = row.dataset.notes || '';
+    document.getElementById('ecError').classList.add('d-none');
+    editModal.show();
+  }
+
+  async function submitEditCompany() {
+    const errEl = document.getElementById('ecError');
+    errEl.classList.add('d-none');
+    const id   = document.getElementById('ecId').value;
+    const name = document.getElementById('ecName').value.trim();
+    if (!name) {
+      errEl.textContent = 'Company name is required.';
+      errEl.classList.remove('d-none');
+      return;
+    }
+    const res = await postJSON(`/clients/${id}/update/`, {
+      name,
+      email: document.getElementById('ecEmail').value.trim(),
+      phone: document.getElementById('ecPhone').value.trim(),
+      notes: document.getElementById('ecNotes').value,
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      errEl.textContent = data.error || 'Failed to save changes.';
+      errEl.classList.remove('d-none');
+      return;
+    }
+    const company = await res.json();
+    editModal.hide();
+    const row = document.querySelector(`.company-row[data-id="${id}"]`);
+    row.replaceWith(buildRow(company));
+    applyFilters();
+    if (_cdCurrentId == id) openCompanyDetail(document.querySelector(`.company-row[data-id="${id}"]`));
+  }
+
+  // ── Delete Company ──
+  async function deleteCompany(id, name, btn) {
+    if (!confirm(`Remove "${name}"? This cannot be undone.`)) return;
+    const res = await postJSON(`/clients/${id}/delete/`, {});
+    if (!res.ok) { alert('Failed to delete company.'); return; }
+    btn.closest('tr').remove();
+    applyFilters();
+  }
+
+  // ── Company Detail Modal ──
+  const companyDetailModal = new bootstrap.Modal(document.getElementById('companyDetailModal'));
+  let _cdCurrentId = null;
+
+  function cdDateFmt(iso) {
+    return new Date(iso + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  function cdEventRows(events) {
+    return events.map(ev => `
+      <tr>
+        <td class="fw-semibold">${ev.name}</td>
+        <td class="text-nowrap">${cdDateFmt(ev.date)}</td>
+        <td class="text-muted">${ev.location || '—'}</td>
+      </tr>`).join('');
+  }
+
+  async function openCompanyDetail(row) {
+    const d = row.dataset;
+    _cdCurrentId = d.id;
+
+    document.getElementById('cdName').textContent = d.name;
+
+    const contacts = [];
+    if (d.email) contacts.push(`<a href="mailto:${d.email}" class="text-decoration-none"><i class="bi bi-envelope me-1 text-muted"></i>${d.email}</a>`);
+    if (d.phone) contacts.push(`<span><i class="bi bi-telephone me-1 text-muted"></i>${d.phone}</span>`);
+    document.getElementById('cdContact').innerHTML = contacts.length
+      ? contacts.join('') : '<span class="text-muted small">No contact info on record.</span>';
+
+    const notesSection = document.getElementById('cdNotesSection');
+    if (d.notes) {
+      notesSection.classList.remove('d-none');
+      document.getElementById('cdNotes').textContent = d.notes;
+    } else {
+      notesSection.classList.add('d-none');
+    }
+
+    ['cdPeopleSection','cdNoPeople','cdUpcomingSection','cdPastSection','cdNoEvents']
+      .forEach(id => document.getElementById(id).classList.add('d-none'));
+    document.getElementById('cdLoading').classList.remove('d-none');
+
+    document.getElementById('cdEditBtn').onclick = () => {
+      companyDetailModal.hide();
+      const liveRow = document.querySelector(`.company-row[data-id="${d.id}"]`);
+      openEditCompany(liveRow.querySelector('.btn-action.edit'));
+    };
+
+    companyDetailModal.show();
+
+    try {
+      const res = await fetch(`/clients/${d.id}/detail/`);
+      const c = await res.json();
+      document.getElementById('cdLoading').classList.add('d-none');
+
+      // Refresh notes
+      if (c.notes) {
+        notesSection.classList.remove('d-none');
+        document.getElementById('cdNotes').textContent = c.notes;
+      } else {
+        notesSection.classList.add('d-none');
+      }
+
+      // People
+      if (c.people.length) {
+        document.getElementById('cdPeopleSection').classList.remove('d-none');
+        document.getElementById('cdPeopleCount').textContent = `(${c.people.length})`;
+        document.getElementById('cdPeopleBody').innerHTML = c.people.map(p => `
+          <tr>
+            <td class="fw-semibold">${p.name}</td>
+            <td class="text-muted">${p.title || '—'}</td>
+            <td>${p.email ? `<a href="mailto:${p.email}" class="text-decoration-none">${p.email}</a>` : '—'}</td>
+            <td class="text-muted">${p.phone_number || '—'}</td>
+          </tr>`).join('');
+      } else {
+        document.getElementById('cdNoPeople').classList.remove('d-none');
+      }
+
+      // Events
+      if (c.upcoming_events.length) {
+        document.getElementById('cdUpcomingSection').classList.remove('d-none');
+        document.getElementById('cdUpcomingBody').innerHTML = cdEventRows(c.upcoming_events);
+      }
+      if (c.past_events.length) {
+        document.getElementById('cdPastSection').classList.remove('d-none');
+        document.getElementById('cdPastBody').innerHTML = cdEventRows(c.past_events);
+      }
+      if (!c.upcoming_events.length && !c.past_events.length) {
+        document.getElementById('cdNoEvents').classList.remove('d-none');
+      }
+    } catch {
+      document.getElementById('cdLoading').innerHTML =
+        '<i class="bi bi-exclamation-triangle text-warning me-1"></i>Failed to load company details.';
+    }
+  }
+</script>
+{% endblock %}

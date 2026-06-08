@@ -230,6 +230,9 @@
           <div id="edNotes" class="rounded-3 p-3" style="background:#f8f9fc;font-size:.88rem;color:#555;line-height:1.6;white-space:pre-line"></div>
         </div>
 
+        <!-- Audit footnote -->
+        <div id="edAudit" class="mt-4 pt-3 border-top text-muted d-none" style="font-size:.75rem;line-height:1.7"></div>
+
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
@@ -275,6 +278,19 @@
           </div>
         </div>
 
+        <!-- Recommended guests -->
+        <div id="recommendedSection" class="card border-0 rounded-3 mb-3 d-none" style="background:#f0f3fc">
+          <div class="p-3">
+            <p class="fw-semibold mb-2 small text-uppercase d-flex align-items-center justify-content-between"
+               style="letter-spacing: 0.06em; color: var(--brand)">
+              <span><i class="bi bi-stars me-1"></i>Recommended from Client</span>
+              <button type="button" class="btn-close btn-sm" style="font-size:.65rem"
+                      onclick="document.getElementById('recommendedSection').classList.add('d-none')"></button>
+            </p>
+            <div id="recommendedList" class="d-flex flex-wrap gap-2"></div>
+          </div>
+        </div>
+
         <!-- Guest filter -->
         <input id="guestFilter" type="text" class="form-control mb-3"
                placeholder="Filter guests by name, company, title…"
@@ -296,11 +312,9 @@
                 <th>Guest</th>
                 <th>Contact</th>
                 <th>Company / Title</th>
-                <th class="text-center">To Invite</th>
                 <th class="text-center">Invited</th>
                 <th class="text-center">Coming</th>
                 <th class="text-center">Registered</th>
-                <th class="text-center">Attended</th>
                 <th></th>
               </tr>
             </thead>
@@ -311,7 +325,12 @@
 
       <div class="modal-footer justify-content-start">
         <small class="text-muted" id="guestCount"></small>
-        <button class="btn btn-secondary btn-sm ms-auto" data-bs-dismiss="modal">Close</button>
+        <a id="registrationModeBtn" href="#" target="_blank"
+           class="btn btn-sm fw-semibold text-white ms-auto"
+           style="background:#198754;border-radius:20px">
+          <i class="bi bi-tablet me-1"></i>Registration Mode
+        </a>
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
       </div>
     </div>
   </div>
@@ -346,8 +365,10 @@
             <input id="npPhone" type="text" class="form-control" />
           </div>
           <div class="col-12">
-            <label class="form-label small fw-semibold">Company</label>
-            <input id="npCompany" type="text" class="form-control" />
+            <label class="form-label small fw-semibold">Company (Client)</label>
+            <select id="npCompany" class="form-select">
+              <option value="">— None —</option>
+            </select>
           </div>
           <div class="col-12">
             <label class="form-label small fw-semibold">Title</label>
@@ -528,6 +549,9 @@
         <div id="eeError" class="alert alert-danger mt-3 d-none py-2"></div>
       </div>
       <div class="modal-footer">
+        <button class="btn btn-sm btn-outline-danger me-auto" onclick="deleteEventFromEdit()">
+          <i class="bi bi-trash3 me-1"></i>Delete Event
+        </button>
         <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
         <button class="btn btn-sm text-white fw-semibold" style="background: var(--brand)" onclick="submitEventEdit()">
           <i class="bi bi-check-lg me-1"></i>Update Event
@@ -577,14 +601,12 @@
     const t = guests.length,
       inv = guests.filter((g) => g.invited).length,
       com = guests.filter((g) => g.able_to_come).length,
-      reg = guests.filter((g) => g.registered).length,
-      att = guests.filter((g) => g.attended).length;
+      reg = guests.filter((g) => g.registered).length;
     document.getElementById("guestSummary").innerHTML = [
       ["bi-people", "Total", t, "bg-primary-subtle text-primary border-primary-subtle"],
       ["bi-envelope-check", "Invited", inv, "bg-info-subtle text-info border-info-subtle"],
       ["bi-hand-thumbs-up-fill", "Coming", com, "bg-success-subtle text-success border-success-subtle"],
       ["bi-pencil-square", "Registered", reg, "bg-warning-subtle text-warning border-warning-subtle"],
-      ["bi-star-fill", "Attended", att, "bg-secondary-subtle text-secondary border-secondary-subtle"],
     ]
       .map(([ic, lb, ct, cls]) =>
         `<span class="badge border rounded-pill px-3 py-2 ${cls}" style="font-size:.78rem;">
@@ -633,11 +655,9 @@
       ${g.company ? `<span class="fw-semibold small">${g.company}</span>` : ""}
       ${g.title ? `<br><span class="text-muted small">${g.title}</span>` : ""}
     </td>
-    <td class="text-center">${statusBtn(g.person_id, "to_invite", g.to_invite)}</td>
     <td class="text-center">${statusBtn(g.person_id, "invited", g.invited)}</td>
     <td class="text-center">${statusBtn(g.person_id, "able_to_come", g.able_to_come)}</td>
     <td class="text-center">${statusBtn(g.person_id, "registered", g.registered)}</td>
-    <td class="text-center">${statusBtn(g.person_id, "attended", g.attended)}</td>
     <td>
       <button class="btn btn-link btn-sm text-danger p-0" title="Remove guest"
               onclick="removeGuest(${g.person_id})">
@@ -650,6 +670,7 @@
 
   async function openGuests(eventId, eventName) {
     currentEventId = eventId;
+    document.getElementById("registrationModeBtn").href = `/events/${eventId}/registration/`;
     document.getElementById("guestModalTitle").textContent = eventName;
     document.getElementById("guestModalSubtitle").textContent = "";
     document.getElementById("guestSummary").innerHTML = "";
@@ -661,8 +682,43 @@
     document.getElementById("guestLoading").classList.remove("d-none");
     document.getElementById("guestTableWrap").classList.add("d-none");
     document.getElementById("guestEmpty").classList.add("d-none");
+    document.getElementById("recommendedSection").classList.add("d-none");
+    document.getElementById("recommendedList").innerHTML = "";
     guestModal.show();
     await reloadGuests();
+    loadRecommended();
+  }
+
+  async function loadRecommended() {
+    try {
+      const res = await fetch(`/people/${currentEventId}/recommended/`);
+      const people = await res.json();
+      const section = document.getElementById("recommendedSection");
+      const list = document.getElementById("recommendedList");
+      if (!people.length) { section.classList.add("d-none"); return; }
+      list.innerHTML = people.map((p) => `
+        <button type="button"
+                class="btn btn-sm border fw-semibold text-start recommended-chip"
+                style="background:#fff;border-color:#c9d4f5!important;border-radius:20px;max-width:260px"
+                onclick="addRecommended(${p.id}, '${p.name.replace(/'/g, "\\'")}', this)">
+          <span class="d-block" style="font-size:.82rem">${p.name}</span>
+          ${p.title || p.company
+            ? `<span class="text-muted" style="font-size:.72rem">${[p.title, p.company].filter(Boolean).join(' · ')}</span>`
+            : ''}
+        </button>`).join('');
+      section.classList.remove("d-none");
+    } catch { /* recommendations are non-critical */ }
+  }
+
+  async function addRecommended(personId, name, btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span>`;
+    await addExistingGuest(personId, name);
+    // remove chip since person is now on the list
+    btn.closest('.recommended-chip')?.remove();
+    if (!document.querySelectorAll('.recommended-chip').length) {
+      document.getElementById("recommendedSection").classList.add("d-none");
+    }
   }
 
   async function reloadGuests() {
@@ -717,6 +773,7 @@
     renderGuests(applyGuestFilter(allGuests));
     document.getElementById("guestModalSubtitle").textContent =
       `${allGuests.length} guest${allGuests.length !== 1 ? "s" : ""} on record`;
+    loadRecommended();
   }
 
   // ══ Person typeahead ══
@@ -800,16 +857,27 @@
   // ══ New Person modal ══
   const newPersonModal = new bootstrap.Modal(document.getElementById("newPersonModal"));
 
-  function openNewPerson(prefill) {
+  async function openNewPerson(prefill) {
     closeDropdown();
     document.getElementById("npFirstName").value = "";
     document.getElementById("npLastName").value = "";
     document.getElementById("npEmail").value = "";
     document.getElementById("npPhone").value = "";
-    document.getElementById("npCompany").value = "";
     document.getElementById("npTitle").value = "";
     document.getElementById("npWF").checked = false;
     document.getElementById("npError").classList.add("d-none");
+    const sel = document.getElementById("npCompany");
+    sel.innerHTML = '<option value="">— None —</option>';
+    try {
+      const res = await fetch("/clients/");
+      const clients = await res.json();
+      clients.forEach(c => {
+        const opt = document.createElement("option");
+        opt.value = c.id;
+        opt.textContent = c.name;
+        sel.appendChild(opt);
+      });
+    } catch { }
     if (prefill) {
       const parts = prefill.trim().split(/\s+/);
       document.getElementById("npFirstName").value = parts[0] || "";
@@ -837,7 +905,7 @@
       first_name: first, last_name: last,
       email: document.getElementById("npEmail").value.trim(),
       phone_number: document.getElementById("npPhone").value.trim(),
-      company: document.getElementById("npCompany").value.trim(),
+      client_id: document.getElementById("npCompany").value || null,
       title: document.getElementById("npTitle").value.trim(),
       is_watson_forsberg: document.getElementById("npWF").checked,
     });
@@ -982,6 +1050,18 @@
     } catch { /* clients optional */ }
     sel.value = d.client || "";
     eventEditModal.show();
+  }
+
+  async function deleteEventFromEdit() {
+    const id = document.getElementById("eeId").value;
+    const name = document.getElementById("eeName").value;
+    if (!confirm(`Permanently delete "${name}" and all its guest records? This cannot be undone.`)) return;
+    const res = await postJSON(`/events/${id}/delete/`, {});
+    if (!res.ok) { alert("Failed to delete event."); return; }
+    eventEditModal.hide();
+    const card = document.querySelector(`.event-item [data-id="${id}"]`)?.closest(".event-item");
+    if (card) card.remove();
+    else window.location.reload();
   }
 
   async function submitEventEdit() {
@@ -1167,6 +1247,27 @@
       notesSection.classList.add('d-none');
     }
 
+    // Audit footnote
+    const auditEl = document.getElementById('edAudit');
+    const fmtDate = iso => iso
+      ? new Date(iso + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      : null;
+    const parts = [];
+    if (d.createdAt) {
+      const who = d.createdBy ? `<strong>${d.createdBy}</strong>` : 'Unknown';
+      parts.push(`<i class="bi bi-plus-circle me-1"></i>Created by ${who} · ${fmtDate(d.createdAt)}`);
+    }
+    if (d.updatedAt && (d.updatedBy || d.updatedAt !== d.createdAt)) {
+      const who = d.updatedBy ? `<strong>${d.updatedBy}</strong>` : 'Unknown';
+      parts.push(`<i class="bi bi-pencil me-1"></i>Last edited by ${who} · ${fmtDate(d.updatedAt)}`);
+    }
+    if (parts.length) {
+      auditEl.innerHTML = parts.join('<span class="mx-2 opacity-50">·</span>');
+      auditEl.classList.remove('d-none');
+    } else {
+      auditEl.classList.add('d-none');
+    }
+
     // Guests / Edit buttons in footer
     const evId = d.id, evName = d.name;
     document.getElementById('edGuestsBtn').onclick = () => {
@@ -1180,5 +1281,16 @@
 
     eventDetailModal.show();
   }
+
+  // ══ Auto-open event from ?open= URL param (must run after all modal inits) ══
+  (function () {
+    const params = new URLSearchParams(window.location.search);
+    const openId = params.get('open');
+    if (openId) {
+      history.replaceState({}, '', window.location.pathname);
+      const btn = document.querySelector(`.event-item [data-id="${openId}"]`);
+      if (btn) openEventDetail(btn.closest('.event-card'));
+    }
+  })();
 </script>
 {% endblock %}

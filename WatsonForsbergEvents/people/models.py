@@ -1,4 +1,5 @@
 from django.db import models
+from clients.models import Client
 
 # Create your models here.
 class Person(models.Model):
@@ -7,6 +8,7 @@ class Person(models.Model):
     name = models.CharField(max_length=100)
     email = models.EmailField()
     phone_number = models.CharField(max_length=20)
-    company = models.CharField(max_length=100, blank=True)
+    company = models.ManyToManyField(Client, blank=True)
     title = models.CharField(max_length=100, blank=True)
     is_watson_forsberg = models.BooleanField(default=False)
+    notes = models.TextField(blank=True)

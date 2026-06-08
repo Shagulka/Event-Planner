@@ -1,4 +1,6 @@
+import datetime
 import json
+from django.db.models import Exists, OuterRef
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET, require_POST
 from django.contrib.auth.decorators import login_required
@@ -6,9 +8,28 @@ from django.shortcuts import render, get_object_or_404
 from .models import Person
 
 
+def _company_str(person):
+    return ', '.join(c.name for c in person.company.all())
+
+
 @login_required
 def index(request):
-    people = Person.objects.order_by('last_name', 'first_name')
+    from events.models import EventGuest
+    today = datetime.date.today()
+    people = (
+        Person.objects
+        .prefetch_related('company')
+        .annotate(
+            has_pending_invite=Exists(
+                EventGuest.objects.filter(
+                    person=OuterRef('pk'),
+                    invited=False,
+                    event__date__gte=today,
+                )
+            )
+        )
+        .order_by('last_name', 'first_name')
+    )
     return render(request, "people_list.html", {"people": people})
 
 
@@ -21,13 +42,83 @@ def search(request):
     people = (
         Person.objects
         .filter(name__icontains=q)
+        .prefetch_related('company')
         .order_by('last_name', 'first_name')[:20]
     )
     return JsonResponse([
-        {'id': p.id, 'name': p.name, 'company': p.company, 'title': p.title, 'email': p.email}
+        {'id': p.id, 'name': p.name, 'company': _company_str(p), 'title': p.title, 'email': p.email}
         for p in people
     ], safe=False)
 
+@login_required
+@require_GET
+def recommended_guests(request, event_id):
+    from events.models import Event, EventGuest
+
+    event = get_object_or_404(Event, pk=event_id)
+    if not event.client_id:
+        return JsonResponse([], safe=False)
+
+    invited_person_ids = EventGuest.objects.filter(event=event).values_list('person_id', flat=True)
+    recommended = (
+        Person.objects
+        .filter(company=event.client)
+        .exclude(id__in=invited_person_ids)
+        .prefetch_related('company')
+        .order_by('last_name', 'first_name')
+    )
+    return JsonResponse([
+        {'id': p.id, 'name': p.name, 'company': _company_str(p), 'title': p.title, 'email': p.email}
+        for p in recommended
+    ], safe=False)
+
+@login_required
+@require_GET
+def detail(request, person_id):
+    import datetime
+    from events.models import EventGuest
+
+    person = get_object_or_404(Person.objects.prefetch_related('company'), pk=person_id)
+    today = datetime.date.today()
+
+    guests = (
+        EventGuest.objects
+        .filter(person=person)
+        .select_related('event', 'event__client')
+        .order_by('event__date')
+    )
+
+    upcoming, past = [], []
+    for g in guests:
+        ev = g.event
+        entry = {
+            'id': ev.id,
+            'name': ev.name,
+            'date': ev.date.isoformat(),
+            'location': ev.location,
+            'client': ev.client.name if ev.client else '',
+            'invited': g.invited,
+            'able_to_come': g.able_to_come,
+            'registered': g.registered,
+        }
+        (upcoming if ev.date >= today else past).append(entry)
+
+    past.reverse()
+
+    return JsonResponse({
+        'id': person.id,
+        'name': person.name,
+        'first_name': person.first_name,
+        'last_name': person.last_name,
+        'email': person.email,
+        'phone_number': person.phone_number,
+        'company': _company_str(person),
+        'title': person.title,
+        'is_watson_forsberg': person.is_watson_forsberg,
+        'notes': person.notes,
+        'upcoming_events': upcoming,
+        'past_events': past,
+    })
 
 
 @login_required
@@ -50,23 +141,22 @@ def create(request):
         name=name,
         email=data.get('email', ''),
         phone_number=data.get('phone_number', ''),
-        company=data.get('company', ''),
         title=data.get('title', ''),
         is_watson_forsberg=data.get('is_watson_forsberg', False),
+        notes=data.get('notes', ''),
     )
-    if person.is_watson_forsberg and person.company == '':
-        person.company = "Watson-Forsberg"
-        person.save()
-    if (person.company.lower() == 'watson-forsberg' or person.company.lower() == 'watson forsberg') and not person.is_watson_forsberg:
-        person.is_watson_forsberg = True
-        person.company = "Watson-Forsberg"
-        person.save()
+    client_id = data.get('client_id') or None
+    if client_id:
+        person.company.set([client_id])
+
     return JsonResponse({
         'id': person.id, 'name': person.name,
         'first_name': person.first_name, 'last_name': person.last_name,
         'email': person.email, 'phone_number': person.phone_number,
-        'company': person.company, 'title': person.title,
+        'company': _company_str(person), 'title': person.title,
         'is_watson_forsberg': person.is_watson_forsberg,
+        'notes': person.notes,
+        'client_id': str(client_id) if client_id else '',
     })
 
 
@@ -89,16 +179,25 @@ def update(request, person_id):
     person.name = f"{first_name} {last_name}".strip()
     person.email = data.get('email', '').strip()
     person.phone_number = data.get('phone_number', '').strip()
-    person.company = data.get('company', '').strip()
     person.title = data.get('title', '').strip()
     person.is_watson_forsberg = data.get('is_watson_forsberg', False)
+    person.notes = data.get('notes', '')
     person.save()
+
+    client_id = data.get('client_id') or None
+    if client_id:
+        person.company.set([client_id])
+    else:
+        person.company.clear()
+
     return JsonResponse({
         'id': person.id, 'name': person.name,
         'first_name': person.first_name, 'last_name': person.last_name,
         'email': person.email, 'phone_number': person.phone_number,
-        'company': person.company, 'title': person.title,
+        'company': _company_str(person), 'title': person.title,
         'is_watson_forsberg': person.is_watson_forsberg,
+        'notes': person.notes,
+        'client_id': str(client_id) if client_id else '',
     })
 
 

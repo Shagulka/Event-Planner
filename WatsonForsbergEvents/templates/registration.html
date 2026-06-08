@@ -1,0 +1,367 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>Registration — {{ event.name }}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <style>
+    :root {
+      --brand: #2c4391;
+      --brand-light: #3d57b8;
+      --green: #198754;
+      --green-light: #d1f5e0;
+    }
+
+    * { -webkit-tap-highlight-color: transparent; }
+
+    body {
+      background: #f2f4f9;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    .reg-header {
+      background: var(--brand);
+      color: #fff;
+      padding: 1rem 1.25rem 0.9rem;
+      flex-shrink: 0;
+    }
+    .reg-header .event-name {
+      font-size: 1.15rem;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+    .reg-header .counter {
+      font-size: 0.82rem;
+      opacity: 0.8;
+      margin-top: 0.15rem;
+    }
+    .back-btn {
+      background: rgba(255,255,255,0.15);
+      border: none;
+      color: #fff;
+      border-radius: 8px;
+      padding: 0.4rem 0.7rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      transition: background 0.15s;
+    }
+    .back-btn:hover { background: rgba(255,255,255,0.25); color: #fff; }
+
+    /* ── Search ── */
+    .search-bar {
+      background: #fff;
+      border-bottom: 1px solid #e0e3ed;
+      padding: 0.75rem 1.25rem;
+      flex-shrink: 0;
+    }
+    .search-bar input {
+      font-size: 1.05rem;
+      border-radius: 50px;
+      padding: 0.65rem 1.1rem;
+      border: 2px solid #dee2e6;
+      width: 100%;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .search-bar input:focus { border-color: var(--brand-light); }
+
+    /* ── Guest list ── */
+    .guest-list {
+      flex: 1;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 0.75rem 1rem 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+
+    .guest-card {
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.9rem 1rem;
+      transition: opacity 0.2s, background 0.3s;
+    }
+    .guest-card.checked-in {
+      background: #f0faf5;
+      box-shadow: 0 1px 4px rgba(25,135,84,0.1);
+    }
+
+    .guest-avatar {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: var(--brand-light);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.05rem;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .guest-card.checked-in .guest-avatar {
+      background: var(--green);
+    }
+
+    .guest-info { flex: 1; min-width: 0; }
+    .guest-info .name {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #1a1a2e;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .guest-card.checked-in .guest-info .name { color: var(--green); }
+    .guest-info .meta {
+      font-size: 0.8rem;
+      color: #888;
+      margin-top: 0.1rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .checkin-btn {
+      flex-shrink: 0;
+      border: none;
+      border-radius: 50px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      padding: 0.6rem 1.2rem;
+      cursor: pointer;
+      transition: transform 0.1s, background 0.2s;
+      background: var(--green);
+      color: #fff;
+      min-width: 110px;
+      text-align: center;
+    }
+    .checkin-btn:active { transform: scale(0.95); }
+    .checkin-btn.done {
+      background: var(--green-light);
+      color: var(--green);
+      cursor: default;
+    }
+    .checkin-btn:disabled { cursor: default; }
+
+    /* ── States ── */
+    #loadingState, #emptyState, #noResultsState {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: #aaa;
+      font-size: 1rem;
+    }
+    #loadingState i, #emptyState i, #noResultsState i {
+      font-size: 2.5rem;
+      display: block;
+      margin-bottom: 0.7rem;
+    }
+
+    /* ── Section divider ── */
+    .list-section-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #aaa;
+      padding: 0.4rem 0.25rem 0.1rem;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="reg-header">
+    <div class="d-flex align-items-start justify-content-between gap-3">
+      <div>
+        <div class="event-name">{{ event.name }}</div>
+        <div class="counter" id="counter">Loading guests…</div>
+      </div>
+      <a href="javascript:history.back()" class="back-btn">
+        <i class="bi bi-arrow-left"></i> Back
+      </a>
+    </div>
+  </div>
+
+  <!-- Search -->
+  <div class="search-bar">
+    <input id="searchInput" type="search" placeholder="Search guests…"
+           autocomplete="off" autocorrect="off" spellcheck="false" />
+  </div>
+
+  <!-- Guest list -->
+  <div class="guest-list" id="guestList">
+    <div id="loadingState">
+      <i class="bi bi-hourglass-split"></i>
+      Loading guest list…
+    </div>
+    <div id="emptyState" class="d-none">
+      <i class="bi bi-person-x"></i>
+      No guests on the list for this event.
+    </div>
+    <div id="noResultsState" class="d-none">
+      <i class="bi bi-search"></i>
+      No guests match your search.
+    </div>
+  </div>
+
+<script>
+  const EVENT_ID = {{ event.id }};
+  let guests = [];
+
+  function getCsrf() {
+    const m = document.cookie.match(/csrftoken=([^;]+)/);
+    return m ? m[1] : '';
+  }
+
+  function initials(name) {
+    return (name || '?').split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase();
+  }
+
+  function updateCounter() {
+    const checked = guests.filter(g => g._checkedIn).length;
+    document.getElementById('counter').textContent =
+      `${checked} of ${guests.length} checked in`;
+  }
+
+  function buildCard(g) {
+    const card = document.createElement('div');
+    card.className = 'guest-card' + (g._checkedIn ? ' checked-in' : '');
+    card.dataset.pid = g.person_id;
+    card.dataset.search = (g.name + ' ' + (g.company || '') + ' ' + (g.title || '')).toLowerCase();
+
+    const meta = [g.title, g.company].filter(Boolean).join(' · ');
+    card.innerHTML = `
+      <div class="guest-avatar">${g._checkedIn ? '<i class="bi bi-check-lg"></i>' : initials(g.name)}</div>
+      <div class="guest-info">
+        <div class="name">${g.name}</div>
+        ${meta ? `<div class="meta">${meta}</div>` : ''}
+      </div>
+      <button class="checkin-btn ${g._checkedIn ? 'done' : ''}"
+              ${g._checkedIn ? 'disabled' : ''}
+              onclick="checkIn(${g.person_id}, this)">
+        ${g._checkedIn
+          ? '<i class="bi bi-check-lg me-1"></i>Checked In'
+          : '<i class="bi bi-check2-circle me-1"></i>Check In'}
+      </button>`;
+    return card;
+  }
+
+  function renderList(filter) {
+    const list = document.getElementById('guestList');
+    const loading = document.getElementById('loadingState');
+    const empty   = document.getElementById('emptyState');
+    const noRes   = document.getElementById('noResultsState');
+
+    // Remove all existing cards
+    list.querySelectorAll('.guest-card, .list-section-label').forEach(el => el.remove());
+
+    loading.classList.add('d-none');
+    empty.classList.add('d-none');
+    noRes.classList.add('d-none');
+
+    if (!guests.length) { empty.classList.remove('d-none'); return; }
+
+    const q = (filter || '').toLowerCase().trim();
+    const visible = q ? guests.filter(g => g.card.dataset.search.includes(q)) : guests;
+
+    if (!visible.length) { noRes.classList.remove('d-none'); return; }
+
+    // Split pending / checked-in
+    const pending   = visible.filter(g => !g._checkedIn);
+    const checkedIn = visible.filter(g => g._checkedIn);
+
+    if (pending.length) {
+      if (checkedIn.length) {
+        const lbl = document.createElement('div');
+        lbl.className = 'list-section-label';
+        lbl.textContent = `Pending (${pending.length})`;
+        list.appendChild(lbl);
+      }
+      pending.forEach(g => list.appendChild(g.card));
+    }
+
+    if (checkedIn.length) {
+      const lbl = document.createElement('div');
+      lbl.className = 'list-section-label';
+      lbl.textContent = `Checked In (${checkedIn.length})`;
+      list.appendChild(lbl);
+      checkedIn.forEach(g => list.appendChild(g.card));
+    }
+  }
+
+  async function checkIn(personId, btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+    try {
+      await fetch(`/events/${EVENT_ID}/guests/${personId}/update/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+        body: JSON.stringify({ registered: true }),
+      });
+
+      const g = guests.find(g => g.person_id === personId);
+      if (g) {
+        g._checkedIn = true;
+        // Rebuild this card
+        const newCard = buildCard(g);
+        g.card.replaceWith(newCard);
+        g.card = newCard;
+        updateCounter();
+        renderList(document.getElementById('searchInput').value);
+      }
+    } catch {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-check2-circle me-1"></i>Check In';
+    }
+  }
+
+  document.getElementById('searchInput').addEventListener('input', function () {
+    renderList(this.value);
+  });
+
+  async function loadGuests() {
+    try {
+      const res  = await fetch(`/events/${EVENT_ID}/guests/`);
+      const data = await res.json();
+
+      guests = data.guests
+        .slice()
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+        .map(g => {
+          g._checkedIn = g.registered;
+          g.card = buildCard(g);
+          return g;
+        });
+
+      updateCounter();
+      renderList('');
+    } catch {
+      document.getElementById('loadingState').innerHTML =
+        '<i class="bi bi-exclamation-triangle"></i>Failed to load guest list.';
+    }
+  }
+
+  loadGuests();
+</script>
+</body>
+</html>

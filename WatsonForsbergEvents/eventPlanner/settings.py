@@ -52,7 +52,7 @@ MICROSOFT_SSO_APPLICATION_ID = os.environ['MICROSOFT_SSO_APPLICATION_ID']
 MICROSOFT_SSO_CLIENT_SECRET = os.environ['MICROSOFT_SSO_CLIENT_SECRET']
 MICROSOFT_SSO_SCOPE = ['User.Read.All']
 
-MICROSOFT_SSO_ALLOWABLE_DOMAINS = ["topconconsulting.com", "watson-forsberg.com", "gmail.com", "grinnell.edu"]
+MICROSOFT_SSO_ALLOWABLE_DOMAINS = ["topconconsulting.com", "watson-forsberg.com"]
 
 
 LOGIN_URL = '/login/'
