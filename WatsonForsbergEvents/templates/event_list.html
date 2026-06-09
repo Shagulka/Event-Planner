@@ -366,9 +366,20 @@
           </div>
           <div class="col-12">
             <label class="form-label small fw-semibold">Company (Client)</label>
-            <select id="npCompany" class="form-select">
-              <option value="">— None —</option>
-            </select>
+            <input type="hidden" id="npClientId" />
+            <div class="typeahead-wrap">
+              <input id="npClientInput" type="text" class="form-control"
+                     placeholder="Search companies…" autocomplete="off" />
+              <div class="typeahead-list" id="npClientDropdown"></div>
+            </div>
+            <div id="npClientSelected" class="mt-2 d-none">
+              <span class="badge border fw-semibold"
+                    style="background:#eef1fc;color:var(--brand);font-size:.82rem;padding:.35em .75em;border-radius:20px;border-color:#c9d4f5!important">
+                <span id="npClientName"></span>
+                <button type="button" class="btn-close ms-1" style="font-size:.5rem"
+                        onclick="clearNewPersonClient()"></button>
+              </span>
+            </div>
           </div>
           <div class="col-12">
             <label class="form-label small fw-semibold">Title</label>
@@ -423,9 +434,20 @@
           </div>
           <div class="col-md-6">
             <label class="form-label small fw-semibold">Client</label>
-            <select id="ecClient" class="form-select">
-              <option value="">— None —</option>
-            </select>
+            <input type="hidden" id="ecClientId" />
+            <div class="typeahead-wrap">
+              <input id="ecClientInput" type="text" class="form-control"
+                     placeholder="Search clients…" autocomplete="off" />
+              <div class="typeahead-list" id="ecClientDropdown"></div>
+            </div>
+            <div id="ecClientSelected" class="mt-2 d-none">
+              <span class="badge border fw-semibold"
+                    style="background:#eef1fc;color:var(--brand);font-size:.82rem;padding:.35em .75em;border-radius:20px;border-color:#c9d4f5!important">
+                <span id="ecClientName"></span>
+                <button type="button" class="btn-close ms-1" style="font-size:.5rem"
+                        onclick="clearEventClient('ec')"></button>
+              </span>
+            </div>
             <div id="ecNewClientRow" class="mt-1 d-none">
               <div class="input-group input-group-sm">
                 <input id="ecNewClientName" type="text" class="form-control" placeholder="New client name" />
@@ -506,9 +528,20 @@
           </div>
           <div class="col-md-6">
             <label class="form-label small fw-semibold">Client</label>
-            <select id="eeClient" class="form-select">
-              <option value="">— None —</option>
-            </select>
+            <input type="hidden" id="eeClientId" />
+            <div class="typeahead-wrap">
+              <input id="eeClientInput" type="text" class="form-control"
+                     placeholder="Search clients…" autocomplete="off" />
+              <div class="typeahead-list" id="eeClientDropdown"></div>
+            </div>
+            <div id="eeClientSelected" class="mt-2 d-none">
+              <span class="badge border fw-semibold"
+                    style="background:#eef1fc;color:var(--brand);font-size:.82rem;padding:.35em .75em;border-radius:20px;border-color:#c9d4f5!important">
+                <span id="eeClientName"></span>
+                <button type="button" class="btn-close ms-1" style="font-size:.5rem"
+                        onclick="clearEventClient('ee')"></button>
+              </span>
+            </div>
             <div id="eeNewClientRow" class="mt-1 d-none">
               <div class="input-group input-group-sm">
                 <input id="eeNewClientName" type="text" class="form-control" placeholder="New client name" />
@@ -763,6 +796,26 @@
     btn.innerHTML = `<i class="bi ${newVal ? "bi-check-circle-fill" : "bi-circle"}"></i>`;
     await postJSON(`/events/${currentEventId}/guests/${personId}/update/`, { [field]: newVal });
     buildSummary(allGuests);
+
+    // Update the event card's uninvited count in real-time
+    const uninvitedCount = allGuests.filter(g => !g.invited).length;
+    const eventCard = document.querySelector(`.event-item [data-id="${currentEventId}"]`)?.closest('.event-card');
+    if (eventCard) {
+      const headerDiv = eventCard.querySelector('.card-header > div');
+      const badge = headerDiv?.querySelector('.badge');
+      if (uninvitedCount > 0) {
+        if (!badge && headerDiv) {
+          const badgeHtml = `<span class="badge rounded-pill mt-1" style="background:#e8a020;color:#fff;font-size:.65rem">
+            <i class="bi bi-clock me-1"></i>${uninvitedCount} not invited
+          </span>`;
+          headerDiv.insertAdjacentHTML('beforeend', badgeHtml);
+        } else if (badge) {
+          badge.innerHTML = `<i class="bi bi-clock me-1"></i>${uninvitedCount} not invited`;
+        }
+      } else if (badge) {
+        badge.remove();
+      }
+    }
   }
 
   async function removeGuest(personId) {
@@ -827,16 +880,39 @@
     const res = await fetch(`/people/search/?q=${encodeURIComponent(q)}`);
     const people = await res.json();
     const dd = document.getElementById("personDropdown");
-    dd.innerHTML = people
+
+    // Group people by company for bulk invite option
+    const byCompany = {};
+    people.forEach(p => {
+      if (p.company) {
+        if (!byCompany[p.company]) byCompany[p.company] = [];
+        byCompany[p.company].push(p);
+      }
+    });
+
+    let html = people
       .map((p) => `
   <div class="typeahead-item" onclick="addExistingGuest(${p.id}, '${p.name.replace(/'/g, "\\'")}')">
     <strong>${p.name}</strong>
     ${p.company || p.title ? `<div class="meta">${[p.title, p.company].filter(Boolean).join(" · ")}</div>` : ""}
   </div>`)
       .join("");
-    dd.innerHTML += `<div class="typeahead-new" onclick="openNewPerson('${q.replace(/'/g, "\\'")}')">
+
+    // Add bulk invite by company option if search matches company name
+    const companyMatches = Object.keys(byCompany).filter(co => co.toLowerCase().includes(q.toLowerCase()));
+    if (companyMatches.length > 0) {
+      html += companyMatches.map(co => `
+  <div class="typeahead-item" style="background:#f0f3fc;border-top:1px solid #e9ecef" onclick="bulkInviteCompany('${co.replace(/'/g, "\\'")}', ${JSON.stringify(byCompany[co].map(p=>p.id)).replace(/"/g, '&quot;')})">
+    <i class="bi bi-people-fill me-1" style="color:var(--brand)"></i><strong>${co}</strong>
+    <div class="meta">${byCompany[co].length} person${byCompany[co].length > 1 ? 's' : ''}</div>
+  </div>`).join('');
+    }
+
+    html += `<div class="typeahead-new" onclick="openNewPerson('${q.replace(/'/g, "\\'")}')">
   <i class="bi bi-plus-circle me-1"></i>Create "<strong>${q}</strong>"
 </div>`;
+
+    dd.innerHTML = html;
     dd.classList.add("show");
   }
 
@@ -854,7 +930,83 @@
       `${allGuests.length} guest${allGuests.length !== 1 ? "s" : ""} on record`;
   }
 
+  async function bulkInviteCompany(companyName, personIds) {
+    closeDropdown();
+    const ids = JSON.parse(personIds);
+    const notAlreadyAdded = ids.filter(id => !allGuests.find(g => g.person_id === id));
+    if (notAlreadyAdded.length === 0) {
+      alert(`All people from ${companyName} are already on the guest list.`);
+      return;
+    }
+    const count = notAlreadyAdded.length;
+    if (!confirm(`Add ${count} person${count > 1 ? 's' : ''} from ${companyName} to the guest list?`)) return;
+
+    for (const personId of notAlreadyAdded) {
+      try {
+        const res = await postJSON(`/events/${currentEventId}/guests/add/`, { person_id: personId });
+        const data = await res.json();
+        allGuests.push(data);
+      } catch (e) { /* continue on error */ }
+    }
+
+    buildSummary(allGuests);
+    renderGuests(applyGuestFilter(allGuests));
+    document.getElementById("guestModalSubtitle").textContent =
+      `${allGuests.length} guest${allGuests.length !== 1 ? "s" : ""} on record`;
+    document.getElementById("personSearch").value = "";
+    alert(`Added ${notAlreadyAdded.length} guest${notAlreadyAdded.length > 1 ? 's' : ''} from ${companyName}`);
+  }
+
   // ══ New Person modal ══
+  let _newPersonClientTimer = null;
+
+  function selectNewPersonClient(id, name) {
+    document.getElementById("npClientId").value = id;
+    document.getElementById("npClientInput").value = "";
+    document.getElementById("npClientName").textContent = name;
+    document.getElementById("npClientSelected").classList.remove("d-none");
+    document.getElementById("npClientInput").classList.add("d-none");
+    document.getElementById("npClientDropdown").classList.remove("show");
+  }
+
+  function clearNewPersonClient() {
+    document.getElementById("npClientId").value = "";
+    document.getElementById("npClientInput").value = "";
+    document.getElementById("npClientSelected").classList.add("d-none");
+    document.getElementById("npClientInput").classList.remove("d-none");
+    document.getElementById("npClientDropdown").classList.remove("show");
+  }
+
+  function setupNewPersonTypeahead() {
+    const input = document.getElementById("npClientInput");
+    const dd = document.getElementById("npClientDropdown");
+    if (!input) return;
+
+    input.addEventListener("input", () => {
+      const q = input.value.trim();
+      clearTimeout(_newPersonClientTimer);
+      if (!q) { dd.classList.remove("show"); return; }
+      _newPersonClientTimer = setTimeout(async () => {
+        try {
+          const res = await fetch(`/clients/?q=${encodeURIComponent(q)}`);
+          const clients = await res.json();
+          dd.innerHTML = clients.map(c => `
+            <div class="typeahead-item" data-id="${c.id}" data-name="${c.name.replace(/"/g,'&quot;')}">
+              ${c.name}
+            </div>`).join('') || '<div class="typeahead-item text-muted">No results</div>';
+          dd.querySelectorAll('.typeahead-item[data-id]').forEach(item => {
+            item.addEventListener('click', () => selectNewPersonClient(item.dataset.id, item.dataset.name));
+          });
+          dd.classList.add("show");
+        } catch { }
+      }, 200);
+    });
+
+    document.addEventListener("click", e => {
+      if (!e.target.closest(".typeahead-wrap")) dd.classList.remove("show");
+    });
+  }
+
   const newPersonModal = new bootstrap.Modal(document.getElementById("newPersonModal"));
 
   async function openNewPerson(prefill) {
@@ -866,18 +1018,8 @@
     document.getElementById("npTitle").value = "";
     document.getElementById("npWF").checked = false;
     document.getElementById("npError").classList.add("d-none");
-    const sel = document.getElementById("npCompany");
-    sel.innerHTML = '<option value="">— None —</option>';
-    try {
-      const res = await fetch("/clients/");
-      const clients = await res.json();
-      clients.forEach(c => {
-        const opt = document.createElement("option");
-        opt.value = c.id;
-        opt.textContent = c.name;
-        sel.appendChild(opt);
-      });
-    } catch { }
+    clearNewPersonClient();
+    setupNewPersonTypeahead();
     if (prefill) {
       const parts = prefill.trim().split(/\s+/);
       document.getElementById("npFirstName").value = parts[0] || "";
@@ -905,7 +1047,7 @@
       first_name: first, last_name: last,
       email: document.getElementById("npEmail").value.trim(),
       phone_number: document.getElementById("npPhone").value.trim(),
-      client_id: document.getElementById("npCompany").value || null,
+      client_id: document.getElementById("npClientId").value || null,
       title: document.getElementById("npTitle").value.trim(),
       is_watson_forsberg: document.getElementById("npWF").checked,
     });
@@ -925,18 +1067,8 @@
     document.getElementById("ecError").classList.add("d-none");
     document.getElementById("ecNewClientRow").classList.add("d-none");
     document.getElementById("ecNewClientBtn").classList.remove("d-none");
-    const sel = document.getElementById("ecClient");
-    sel.innerHTML = '<option value="">— None —</option>';
-    try {
-      const res = await fetch("/clients/");
-      const clients = await res.json();
-      clients.forEach((c) => {
-        const opt = document.createElement("option");
-        opt.value = c.id;
-        opt.textContent = c.name;
-        sel.appendChild(opt);
-      });
-    } catch { /* clients optional */ }
+    clearEventClient("ec");
+    setupEventClientTypeahead("ec");
     eventCreateModal.show();
   }
 
@@ -954,7 +1086,7 @@
       name, date,
       time: document.getElementById("ecTime").value || null,
       location: document.getElementById("ecLocation").value.trim(),
-      client_id: document.getElementById("ecClient").value || null,
+      client_id: document.getElementById("ecClientId").value || null,
       registrations_due: document.getElementById("ecRegDue").value || null,
       num_tickets: document.getElementById("ecTickets").value || null,
       proposed_amount: document.getElementById("ecProposed").value || null,
@@ -970,6 +1102,58 @@
     }
     eventCreateModal.hide();
     window.location.reload();
+  }
+
+  // ══════════════════════════════════════════
+  //  EVENT CLIENT TYPEAHEAD
+  // ══════════════════════════════════════════
+  let _eventClientTimer = null;
+
+  function selectEventClient(prefix, id, name) {
+    document.getElementById(prefix + "ClientId").value = id;
+    document.getElementById(prefix + "ClientInput").value = "";
+    document.getElementById(prefix + "ClientName").textContent = name;
+    document.getElementById(prefix + "ClientSelected").classList.remove("d-none");
+    document.getElementById(prefix + "ClientInput").classList.add("d-none");
+    document.getElementById(prefix + "ClientDropdown").classList.remove("show");
+  }
+
+  function clearEventClient(prefix) {
+    document.getElementById(prefix + "ClientId").value = "";
+    document.getElementById(prefix + "ClientInput").value = "";
+    document.getElementById(prefix + "ClientSelected").classList.add("d-none");
+    document.getElementById(prefix + "ClientInput").classList.remove("d-none");
+    document.getElementById(prefix + "ClientDropdown").classList.remove("show");
+  }
+
+  function setupEventClientTypeahead(prefix) {
+    const input = document.getElementById(prefix + "ClientInput");
+    const dd = document.getElementById(prefix + "ClientDropdown");
+    if (!input) return;
+
+    input.addEventListener("input", () => {
+      const q = input.value.trim();
+      clearTimeout(_eventClientTimer);
+      if (!q) { dd.classList.remove("show"); return; }
+      _eventClientTimer = setTimeout(async () => {
+        try {
+          const res = await fetch(`/clients/?q=${encodeURIComponent(q)}`);
+          const clients = await res.json();
+          dd.innerHTML = clients.map(c => `
+            <div class="typeahead-item" data-id="${c.id}" data-name="${c.name.replace(/"/g,'&quot;')}">
+              ${c.name}
+            </div>`).join('') || '<div class="typeahead-item text-muted">No results</div>';
+          dd.querySelectorAll('.typeahead-item[data-id]').forEach(item => {
+            item.addEventListener('click', () => selectEventClient(prefix, item.dataset.id, item.dataset.name));
+          });
+          dd.classList.add("show");
+        } catch { }
+      }, 200);
+    });
+
+    document.addEventListener("click", e => {
+      if (!e.target.closest(".typeahead-wrap")) dd.classList.remove("show");
+    });
   }
 
   // ══════════════════════════════════════════
@@ -1006,12 +1190,7 @@
       return;
     }
     const client = await res.json();
-    const sel = document.getElementById(prefix + "Client");
-    const opt = document.createElement("option");
-    opt.value = client.id;
-    opt.textContent = client.name;
-    sel.appendChild(opt);
-    sel.value = client.id;
+    selectEventClient(prefix, client.id, client.name);
     toggleNewClient(prefix);
   }
 
@@ -1036,19 +1215,11 @@
     document.getElementById("eeError").classList.add("d-none");
     document.getElementById("eeNewClientRow").classList.add("d-none");
     document.getElementById("eeNewClientBtn").classList.remove("d-none");
-    const sel = document.getElementById("eeClient");
-    sel.innerHTML = '<option value="">— None —</option>';
-    try {
-      const res = await fetch("/clients/");
-      const clients = await res.json();
-      clients.forEach((c) => {
-        const opt = document.createElement("option");
-        opt.value = c.id;
-        opt.textContent = c.name;
-        sel.appendChild(opt);
-      });
-    } catch { /* clients optional */ }
-    sel.value = d.client || "";
+    clearEventClient("ee");
+    if (d.client && d.clientName) {
+      selectEventClient("ee", d.client, d.clientName);
+    }
+    setupEventClientTypeahead("ee");
     eventEditModal.show();
   }
 
@@ -1079,7 +1250,7 @@
       name, date,
       time: document.getElementById("eeTime").value || null,
       location: document.getElementById("eeLocation").value.trim(),
-      client_id: document.getElementById("eeClient").value || null,
+      client_id: document.getElementById("eeClientId").value || null,
       registrations_due: document.getElementById("eeRegDue").value || null,
       num_tickets: document.getElementById("eeTickets").value || null,
       proposed_amount: document.getElementById("eeProposed").value || null,

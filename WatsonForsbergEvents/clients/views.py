@@ -9,21 +9,37 @@ from .models import Client
 
 @login_required
 def index(request):
-    clients = Client.objects.order_by('name')
+    clients = Client.objects.select_related('contact_person').order_by('name')
     return render(request, 'company_list.html', {'clients': clients})
 
 
 @login_required
 @require_GET
 def list_clients(request):
+    q = request.GET.get('q', '').strip()
     clients = Client.objects.order_by('name')
+    if q:
+        clients = clients.filter(name__icontains=q)[:50]
     return JsonResponse([{'id': c.id, 'name': c.name} for c in clients], safe=False)
+
+
+def _contact_person_data(client):
+    cp = client.contact_person
+    if not cp:
+        return None
+    return {
+        'id': cp.id,
+        'name': cp.name,
+        'title': cp.title,
+        'email': cp.email,
+        'phone_number': cp.phone_number,
+    }
 
 
 @login_required
 @require_GET
 def client_detail(request, client_id):
-    client = get_object_or_404(Client, pk=client_id)
+    client = get_object_or_404(Client.objects.select_related('contact_person'), pk=client_id)
     today = datetime.date.today()
 
     people = (
@@ -54,6 +70,7 @@ def client_detail(request, client_id):
         'email': client.email,
         'phone': client.phone,
         'notes': client.notes,
+        'contact_person': _contact_person_data(client),
         'people': [
             {
                 'id': p.id,
@@ -79,15 +96,19 @@ def create_client(request):
     name = data.get('name', '').strip()
     if not name:
         return JsonResponse({'error': 'name is required'}, status=400)
+    contact_person_id = data.get('contact_person_id') or None
     client = Client.objects.create(
         name=name,
         email=data.get('email', '').strip(),
         phone=data.get('phone', '').strip(),
         notes=data.get('notes', ''),
+        contact_person_id=contact_person_id,
     )
+    client.refresh_from_db()
     return JsonResponse({
         'id': client.id, 'name': client.name,
         'email': client.email, 'phone': client.phone, 'notes': client.notes,
+        'contact_person': _contact_person_data(client),
     })
 
 
@@ -106,10 +127,13 @@ def update_client(request, client_id):
     client.email = data.get('email', '').strip()
     client.phone = data.get('phone', '').strip()
     client.notes = data.get('notes', '')
+    client.contact_person_id = data.get('contact_person_id') or None
     client.save()
+    client.refresh_from_db()
     return JsonResponse({
         'id': client.id, 'name': client.name,
         'email': client.email, 'phone': client.phone, 'notes': client.notes,
+        'contact_person': _contact_person_data(client),
     })
 
 
