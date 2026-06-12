@@ -411,6 +411,7 @@
                   <th>Event</th><th>Date</th><th>Client</th>
                   <th class="text-center">Invited</th>
                   <th class="text-center">Registered</th>
+                  <th class="text-center">Attended</th>
                 </tr>
               </thead>
               <tbody id="pdPastBody"></tbody>
@@ -884,7 +885,7 @@
   async function pdToggleStatus(eventId, field, currentVal) {
     const newVal = !currentVal;
     await postJSON(`/events/${eventId}/guests/${_pdCurrentId}/update/`, { [field]: newVal });
-    // Re-fetch to reflect server-side cascade (e.g. able_to_come sets invited)
+    // Re-fetch to reflect server-side cascade (e.g. attended cascades to registered/invited)
     try {
       const res = await fetch(`/people/${_pdCurrentId}/detail/`);
       const p = await res.json();
@@ -892,6 +893,11 @@
         document.getElementById('pdUpcomingSection').classList.remove('d-none');
         document.getElementById('pdUpcomingBody').innerHTML =
           pdEventRows(p.upcoming_events, ['invited','able_to_come','registered'], true);
+      }
+      if (p.past_events.length) {
+        document.getElementById('pdPastSection').classList.remove('d-none');
+        document.getElementById('pdPastBody').innerHTML =
+          pdEventRows(p.past_events, ['invited','registered','attended'], true);
       }
       // Sync pending badge on the directory row without waiting for page reload
       const hasPending = p.upcoming_events.some(ev => !ev.invited);
@@ -1025,7 +1031,7 @@
       if (p.past_events.length) {
         document.getElementById('pdPastSection').classList.remove('d-none');
         document.getElementById('pdPastBody').innerHTML =
-          pdEventRows(p.past_events, ['invited','registered']);
+          pdEventRows(p.past_events, ['invited','registered','attended'], true);
       }
 
       if (!p.upcoming_events.length && !p.past_events.length) {

@@ -217,7 +217,7 @@
   <!-- Guest funnel summary cards -->
   <p class="section-label mb-3">Guest Funnel</p>
   <div class="row g-3 mb-4">
-    <div class="col-6 col-md-4 col-xl-2">
+    <div class="col-6 col-md-4 col-xl">
       <div class="metric-card position-relative">
         <i class="bi bi-calendar-event icon"></i>
         <div class="label">Events</div>
@@ -225,7 +225,7 @@
         <div class="sub">in period</div>
       </div>
     </div>
-    <div class="col-6 col-md-4 col-xl-2">
+    <div class="col-6 col-md-4 col-xl">
       <div class="metric-card position-relative">
         <i class="bi bi-people icon"></i>
         <div class="label">On List</div>
@@ -233,7 +233,7 @@
         <div class="sub">guest records</div>
       </div>
     </div>
-    <div class="col-6 col-md-4 col-xl-2">
+    <div class="col-6 col-md-4 col-xl">
       <div class="metric-card position-relative">
         <i class="bi bi-envelope-check icon"></i>
         <div class="label">Invited</div>
@@ -241,7 +241,7 @@
         <div class="sub">invitations sent</div>
       </div>
     </div>
-    <div class="col-6 col-md-4 col-xl-2">
+    <div class="col-6 col-md-4 col-xl">
       <div class="metric-card position-relative">
         <i class="bi bi-hand-thumbs-up-fill icon"></i>
         <div class="label">Can Come</div>
@@ -249,15 +249,23 @@
         <div class="sub">confirmed attendance</div>
       </div>
     </div>
-    <div class="col-6 col-md-4 col-xl-2">
+    <div class="col-6 col-md-4 col-xl">
       <div class="metric-card position-relative">
         <i class="bi bi-pencil-square icon"></i>
         <div class="label">Registered</div>
         <div class="value" id="sumRegistered">—</div>
-        <div class="sub">checked in</div>
+        <div class="sub">completed registration</div>
       </div>
     </div>
-    <div class="col-6 col-md-4 col-xl-2">
+    <div class="col-6 col-md-4 col-xl">
+      <div class="metric-card position-relative">
+        <i class="bi bi-person-check-fill icon"></i>
+        <div class="label">Attended</div>
+        <div class="value" id="sumAttended">—</div>
+        <div class="sub">checked in on day</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl">
       <div class="metric-card position-relative">
         <i class="bi bi-graph-up-arrow icon"></i>
         <div class="label">Avg Rate</div>
@@ -410,6 +418,9 @@
           <th class="text-end sortable" data-col="registered">
             Registered <span class="sort-icon ms-1"></span>
           </th>
+          <th class="text-end sortable" data-col="attended">
+            Attended <span class="sort-icon ms-1"></span>
+          </th>
           <th class="text-center sortable" data-col="reg_rate">
             Rate <span class="sort-icon ms-1"></span>
           </th>
@@ -514,11 +525,13 @@
   function updateSummaryCards(rows) {
     const inv = rows.reduce((s, r) => s + r.invited, 0);
     const reg = rows.reduce((s, r) => s + r.registered, 0);
+    const att = rows.reduce((s, r) => s + (r.attended || 0), 0);
     document.getElementById("sumEvents").textContent    = rows.length;
     document.getElementById("sumOnList").textContent    = rows.reduce((s, r) => s + r.guests_total, 0);
     document.getElementById("sumInvited").textContent   = inv;
     document.getElementById("sumAble").textContent      = rows.reduce((s, r) => s + r.able_to_come, 0);
     document.getElementById("sumRegistered").textContent = reg;
+    document.getElementById("sumAttended").textContent  = att;
     document.getElementById("sumRate").textContent      = (inv ? Math.round(reg / inv * 100) : 0) + "%";
 
     const tp = rows.reduce((s, r) => s + (r.total_proposed || 0), 0);
@@ -609,6 +622,7 @@
           <td class="text-end">${r.invited}${funnelBar(r.invited, r.guests_total, "#7b93e0")}</td>
           <td class="text-end">${r.able_to_come}${funnelBar(r.able_to_come, r.invited, "#4caf7d")}</td>
           <td class="text-end">${r.registered}${funnelBar(r.registered, r.invited, "#2c4391")}</td>
+          <td class="text-end">${r.attended || 0}${funnelBar(r.attended || 0, r.registered, "#198754")}</td>
           <td class="text-center">${rateBadge(r.reg_rate)}</td>
           <td class="text-end">${fmtBudget(r.total_proposed)}</td>
           <td class="text-end">${fmtBudget(r.total_actual)}</td>

@@ -7,6 +7,7 @@ class EventGuest(models.Model):
     invited_date = models.DateField(null=True, blank=True)
     able_to_come = models.BooleanField(default=False)
     registered = models.BooleanField(default=False)
+    attended   = models.BooleanField(default=False)
 
     class Meta:
         unique_together = ('event', 'person')

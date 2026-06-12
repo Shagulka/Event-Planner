@@ -54,6 +54,7 @@ def event_guests(request, event_id):
             "invited_date": g.invited_date.isoformat() if g.invited_date else None,
             "able_to_come": g.able_to_come,
             "registered": g.registered,
+            "attended": g.attended,
         }
         for g in guests
     ]
@@ -130,7 +131,7 @@ def event_guest_update(request, event_id, person_id):
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
 
-    allowed = {'invited', 'invited_date', 'able_to_come', 'registered'}
+    allowed = {'invited', 'invited_date', 'able_to_come', 'registered', 'attended'}
     for field, value in data.items():
         if field in allowed:
             setattr(guest, field, value)
@@ -139,6 +140,10 @@ def event_guest_update(request, event_id, person_id):
     if guest.registered:
         guest.invited = True
         guest.able_to_come = True
+    if  guest.attended:
+        guest.invited = True
+        guest.able_to_come = True
+        guest.registered = True
     guest.save()
     return JsonResponse({'ok': True})
 
@@ -229,12 +234,13 @@ def metrics_data(request):
             invited_count=Count('event_guests', filter=Q(event_guests__invited=True)),
             able_count=Count('event_guests', filter=Q(event_guests__able_to_come=True)),
             registered_count=Count('event_guests', filter=Q(event_guests__registered=True)),
+            attended_count=Count('event_guests', filter=Q(event_guests__attended=True)),
         )
         .order_by('date')
     )
 
     rows = []
-    tot_guests = tot_invited = tot_able = tot_registered = 0
+    tot_guests = tot_invited = tot_able = tot_registered = tot_attended = 0
     tot_mat_p = tot_mat_a = tot_ven_p = tot_ven_a = 0
     tot_tic_p = tot_tic_a = tot_mis_p = tot_mis_a = 0
 
@@ -246,6 +252,7 @@ def metrics_data(request):
         tot_invited    += ev.invited_count
         tot_able       += ev.able_count
         tot_registered += ev.registered_count
+        tot_attended   += ev.attended_count
         tot_mat_p += float(ev.budget_materials_proposed or 0)
         tot_mat_a += float(ev.budget_materials_actual   or 0)
         tot_ven_p += float(ev.budget_venue_proposed     or 0)
@@ -268,6 +275,7 @@ def metrics_data(request):
             'invited': ev.invited_count,
             'able_to_come': ev.able_count,
             'registered': ev.registered_count,
+            'attended': ev.attended_count,
             'reg_rate': round(ev.registered_count / ev.invited_count * 100) if ev.invited_count else 0,
             'total_proposed': _f(tp),
             'total_actual':   _f(ta),
@@ -290,6 +298,7 @@ def metrics_data(request):
             'invited': tot_invited,
             'able': tot_able,
             'registered': tot_registered,
+            'attended': tot_attended,
             'avg_reg_rate': avg_rate,
             'total_proposed': tot_mat_p + tot_ven_p + tot_tic_p + tot_mis_p,
             'total_actual':   tot_mat_a + tot_ven_a + tot_tic_a + tot_mis_a,

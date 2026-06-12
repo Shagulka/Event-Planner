@@ -316,7 +316,7 @@
       await fetch(`/events/${EVENT_ID}/guests/${personId}/update/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
-        body: JSON.stringify({ registered: true }),
+        body: JSON.stringify({ attended: true }),
       });
 
       const g = guests.find(g => g.person_id === personId);
@@ -348,7 +348,7 @@
         .slice()
         .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
         .map(g => {
-          g._checkedIn = g.registered;
+          g._checkedIn = g.attended;
           g.card = buildCard(g);
           return g;
         });

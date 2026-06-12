@@ -100,6 +100,7 @@ def detail(request, person_id):
             'invited': g.invited,
             'able_to_come': g.able_to_come,
             'registered': g.registered,
+            'attended': g.attended,
         }
         (upcoming if ev.date >= today else past).append(entry)
 

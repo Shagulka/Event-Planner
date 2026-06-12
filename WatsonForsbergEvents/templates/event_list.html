@@ -333,6 +333,7 @@
                 <th class="text-center">Invited</th>
                 <th class="text-center">Coming</th>
                 <th class="text-center">Registered</th>
+                <th class="text-center">Attended</th>
                 <th></th>
               </tr>
             </thead>
@@ -790,12 +791,14 @@
     const t = guests.length,
       inv = guests.filter((g) => g.invited).length,
       com = guests.filter((g) => g.able_to_come).length,
-      reg = guests.filter((g) => g.registered).length;
+      reg = guests.filter((g) => g.registered).length,
+      att = guests.filter((g) => g.attended).length;
     document.getElementById("guestSummary").innerHTML = [
       ["bi-people", "Total", t, "bg-primary-subtle text-primary border-primary-subtle"],
       ["bi-envelope-check", "Invited", inv, "bg-info-subtle text-info border-info-subtle"],
       ["bi-hand-thumbs-up-fill", "Coming", com, "bg-success-subtle text-success border-success-subtle"],
       ["bi-pencil-square", "Registered", reg, "bg-warning-subtle text-warning border-warning-subtle"],
+      ["bi-person-check-fill", "Attended", att, "bg-success-subtle text-success border-success-subtle"],
     ]
       .map(([ic, lb, ct, cls]) =>
         `<span class="badge border rounded-pill px-3 py-2 ${cls}" style="font-size:.78rem;">
@@ -847,7 +850,8 @@
     <td class="text-center">${statusBtn(g.person_id, "invited", g.invited)}</td>
     <td class="text-center">${statusBtn(g.person_id, "able_to_come", g.able_to_come)}</td>
     <td class="text-center">${statusBtn(g.person_id, "registered", g.registered)}</td>
-    <td>
+    <td class="text-center">${statusBtn(g.person_id, "attended", g.attended)}</td>
+    <td
       <button class="btn btn-link btn-sm text-danger p-0" title="Remove guest"
               onclick="removeGuest(${g.person_id})">
         <i class="bi bi-trash3"></i>
