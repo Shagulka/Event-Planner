@@ -44,11 +44,9 @@
   .btn-action.del:hover   { background: #fde8ea; }
 
   #addCompanyModal .modal-header,
-  #editCompanyModal .modal-header,
-  #companyDetailModal .modal-header { background: var(--brand); color: #fff; }
+  #editCompanyModal .modal-header { background: var(--brand); color: #fff; }
   #addCompanyModal .modal-header .btn-close,
-  #editCompanyModal .modal-header .btn-close,
-  #companyDetailModal .modal-header .btn-close { filter: invert(1); }
+  #editCompanyModal .modal-header .btn-close { filter: invert(1); }
 
   .cd-section-label {
     font-size: 0.72rem; font-weight: 700;
@@ -56,9 +54,59 @@
     color: var(--brand); margin-bottom: 0.5rem;
   }
 
-  @media (max-width: 576px) {
-    .col-contact { display: none; }
+  /* ── Company detail modal ── */
+  #companyDetailModal .modal-content {
+    border: none; border-radius: 16px; overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,.18);
   }
+  .cd-avatar-lg {
+    width: 56px; height: 56px; border-radius: 12px;
+    background: rgba(255,255,255,.22); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.25rem; font-weight: 700; flex-shrink: 0; letter-spacing: -.5px;
+  }
+  .contact-chip {
+    display: inline-flex; align-items: center; gap: .4rem;
+    padding: .35rem .8rem; border-radius: 20px; font-size: .84rem;
+    border: 1px solid #e0e3ed; background: #fff; color: #444;
+    text-decoration: none; transition: background .12s, border-color .12s;
+  }
+  a.contact-chip:hover { background: #eef1fc; border-color: var(--brand); color: var(--brand); }
+  .cd-person-card {
+    display: flex; align-items: center; gap: .75rem;
+    padding: .6rem .75rem; border-radius: 10px;
+    border: 1px solid #eef0f7; color: inherit;
+    text-decoration: none; transition: background .12s;
+    margin-bottom: .5rem;
+  }
+  .cd-person-card:hover { background: #f0f3fc; border-color: #c9d4f5; }
+  .cd-person-card:last-child { margin-bottom: 0; }
+  .cd-person-avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: var(--brand-light); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .75rem; font-weight: 700; flex-shrink: 0;
+  }
+
+  @media (max-width: 576px) {
+    .col-contact, .col-contact-person { display: none; }
+  }
+
+  .cp-typeahead-wrap { position: relative; }
+  .cp-typeahead-list {
+    position: absolute; top: 100%; left: 0; right: 0; z-index: 1055;
+    background: #fff; border: 1px solid #dee2e6; border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.12); max-height: 200px;
+    overflow-y: auto; display: none;
+  }
+  .cp-typeahead-list.show { display: block; }
+  .cp-typeahead-item {
+    padding: .5rem .9rem; cursor: pointer; font-size: .87rem;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .cp-typeahead-item:last-child { border-bottom: none; }
+  .cp-typeahead-item:hover, .cp-typeahead-item.active { background: #eef1fc; }
+  .cp-typeahead-item .meta { font-size: .73rem; color: #888; }
 </style>
 {% endblock %}
 
@@ -112,6 +160,7 @@
       <thead>
         <tr>
           <th>Company</th>
+          <th class="col-contact-person">Contact Person</th>
           <th class="col-contact">Contact</th>
           <th>Notes</th>
           <th style="width: 80px"></th>
@@ -124,7 +173,12 @@
             data-name="{{ c.name }}"
             data-email="{{ c.email }}"
             data-phone="{{ c.phone }}"
-            data-notes="{{ c.notes|escapejs }}"
+            data-notes="{{ c.notes }}"
+            data-address="{{ c.address }}"
+            data-market-area="{{ c.market_area }}"
+            data-website="{{ c.website }}"
+            data-contact-person-id="{{ c.contact_person_id|default:'' }}"
+            data-contact-person-name="{{ c.contact_person.name|default:'' }}"
             data-search="{{ c.name|lower }} {{ c.email|lower }}"
             onclick="openCompanyDetail(this)">
           <td>
@@ -132,6 +186,13 @@
               <div class="company-avatar">{{ c.name|slice:":2"|upper }}</div>
               <span class="fw-semibold">{{ c.name }}</span>
             </div>
+          </td>
+          <td class="col-contact-person">
+            {% if c.contact_person %}
+            <a href="/people/?open={{ c.contact_person_id }}"
+               class="text-decoration-none fw-semibold" style="color:var(--brand)"
+               onclick="event.stopPropagation()">{{ c.contact_person.name }}</a>
+            {% endif %}
           </td>
           <td class="col-contact">
             {% if c.email %}<a href="mailto:{{ c.email }}" class="d-block text-decoration-none text-muted small"><i class="bi bi-envelope me-1"></i>{{ c.email }}</a>{% endif %}
@@ -146,7 +207,7 @@
           </td>
         </tr>
         {% empty %}
-        <tr id="noDataRow"><td colspan="4" class="text-center text-muted py-4">No companies on record yet.</td></tr>
+        <tr id="noDataRow"><td colspan="5" class="text-center text-muted py-4">No companies on record yet.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -155,77 +216,82 @@
 
 <!-- ══ Company Detail Modal ══ -->
 <div class="modal fade" id="companyDetailModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable modal-dialog-centered">
     <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title fw-bold" id="cdName"></h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      <div class="modal-header border-0" style="background:var(--brand);color:#fff;padding:1.4rem 1.5rem 1.2rem">
+        <div class="d-flex align-items-center gap-3 flex-grow-1 me-3">
+          <div id="cdAvatar" class="cd-avatar-lg">??</div>
+          <div>
+            <h4 class="modal-title fw-bold mb-1 lh-sm" id="cdName"></h4>
+            <div id="cdHeaderBadges" class="d-flex flex-wrap gap-2"></div>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter:invert(1)"></button>
       </div>
-      <div class="modal-body">
+      <div class="modal-body p-0">
 
-        <!-- Contact -->
-        <div class="mb-4">
-          <p class="cd-section-label"><i class="bi bi-telephone-fill me-1"></i>Contact</p>
-          <div id="cdContact" class="d-flex flex-wrap gap-3" style="font-size:.9rem"></div>
+        <!-- Quick contact chips -->
+        <div id="cdQuickInfo" class="px-4 py-3 d-flex flex-wrap gap-2 border-bottom" style="background:#fafbfe;min-height:52px"></div>
+
+        <!-- Address -->
+        <div id="cdAddressSection" class="px-4 py-3 border-bottom d-none">
+          <p class="cd-section-label mt-1"><i class="bi bi-geo-alt-fill me-1"></i>Address</p>
+          <div id="cdMapContainer" class="d-none mb-2" style="height:220px;border-radius:10px;overflow:hidden;border:1px solid #dee2e6;"></div>
+          <div id="cdAddressFallback" class="d-none" style="font-size:.9rem;color:#555"></div>
         </div>
 
-        <!-- Notes -->
-        <div id="cdNotesSection" class="mb-4 d-none">
-          <p class="cd-section-label"><i class="bi bi-sticky-fill me-1"></i>Notes</p>
-          <div id="cdNotes" class="rounded-3 p-3"
-               style="background:#f8f9fc;font-size:.88rem;color:#555;line-height:1.6;white-space:pre-line"></div>
+        <!-- Key Contact -->
+        <div id="cdContactPersonSection" class="px-4 py-3 border-bottom d-none">
+          <p class="cd-section-label mt-1"><i class="bi bi-person-badge-fill me-1"></i>Key Contact</p>
+          <div id="cdContactPersonCard"></div>
         </div>
 
         <!-- Loading -->
-        <div id="cdLoading" class="text-center py-4 text-muted">
+        <div id="cdLoading" class="text-center py-5 text-muted">
           <div class="spinner-border spinner-border-sm me-2"></div>Loading…
         </div>
 
         <!-- People -->
-        <div id="cdPeopleSection" class="mb-4 d-none">
-          <p class="cd-section-label"><i class="bi bi-people-fill me-1"></i>People
-            <span id="cdPeopleCount" class="text-muted fw-normal ms-1" style="font-size:.85rem;text-transform:none;letter-spacing:0"></span>
+        <div id="cdPeopleSection" class="px-4 py-3 border-bottom d-none">
+          <p class="cd-section-label mt-1">
+            <i class="bi bi-people-fill me-1"></i>People
+            <span id="cdPeopleCount" class="fw-normal ms-1 text-muted" style="font-size:.85rem;text-transform:none;letter-spacing:0"></span>
           </p>
-          <div class="table-responsive">
-            <table class="table table-sm table-hover mb-0" style="font-size:.85rem">
-              <thead class="table-light">
-                <tr><th>Name</th><th>Title</th><th>Email</th><th>Phone</th></tr>
-              </thead>
-              <tbody id="cdPeopleBody"></tbody>
-            </table>
-          </div>
+          <div id="cdPeopleList"></div>
         </div>
-        <div id="cdNoPeople" class="text-muted small mb-4 d-none">No people linked to this company.</div>
+        <div id="cdNoPeople" class="text-muted small text-center py-3 d-none">No people linked to this company.</div>
+
+        <!-- Notes -->
+        <div id="cdNotesSection" class="px-4 py-3 border-bottom d-none">
+          <p class="cd-section-label mt-1"><i class="bi bi-sticky-fill me-1"></i>Notes</p>
+          <div id="cdNotes" class="rounded-3 p-3" style="background:#f8f9fc;font-size:.88rem;color:#555;line-height:1.6;white-space:pre-line"></div>
+        </div>
 
         <!-- Upcoming Events -->
-        <div id="cdUpcomingSection" class="mb-4 d-none">
-          <p class="cd-section-label"><i class="bi bi-calendar-event me-1"></i>Upcoming Events</p>
+        <div id="cdUpcomingSection" class="px-4 py-3 border-bottom d-none">
+          <p class="cd-section-label mt-1"><i class="bi bi-calendar-event me-1"></i>Upcoming Events</p>
           <div class="table-responsive">
             <table class="table table-sm table-hover mb-0" style="font-size:.85rem">
-              <thead class="table-light">
-                <tr><th>Event</th><th>Date</th><th>Location</th></tr>
-              </thead>
+              <thead class="table-light"><tr><th>Event</th><th>Date</th><th>Location</th></tr></thead>
               <tbody id="cdUpcomingBody"></tbody>
             </table>
           </div>
         </div>
 
         <!-- Past Events -->
-        <div id="cdPastSection" class="d-none">
-          <p class="cd-section-label"><i class="bi bi-clock-history me-1"></i>Past Events</p>
+        <div id="cdPastSection" class="px-4 py-3 d-none">
+          <p class="cd-section-label mt-1"><i class="bi bi-clock-history me-1"></i>Past Events</p>
           <div class="table-responsive">
             <table class="table table-sm table-hover mb-0" style="font-size:.85rem">
-              <thead class="table-light">
-                <tr><th>Event</th><th>Date</th><th>Location</th></tr>
-              </thead>
+              <thead class="table-light"><tr><th>Event</th><th>Date</th><th>Location</th></tr></thead>
               <tbody id="cdPastBody"></tbody>
             </table>
           </div>
         </div>
-        <div id="cdNoEvents" class="text-muted small d-none">No events associated with this company.</div>
+        <div id="cdNoEvents" class="text-muted small text-center py-3 d-none">No events associated with this company.</div>
 
       </div>
-      <div class="modal-footer">
+      <div class="modal-footer border-0" style="background:#f8f9fc">
         <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
         <button class="btn btn-sm btn-outline-primary" id="cdEditBtn">
           <i class="bi bi-pencil me-1"></i>Edit
@@ -256,6 +322,35 @@
           <div class="col-12">
             <label class="form-label small fw-semibold">Phone</label>
             <input id="acPhone" type="text" class="form-control" />
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Website</label>
+            <input id="acWebsite" type="url" class="form-control" placeholder="https://…" />
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Address</label>
+            <input id="acAddress" type="text" class="form-control" placeholder="Street, City, State ZIP" />
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Market Area</label>
+            <input id="acMarketArea" type="text" class="form-control" />
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Contact Person</label>
+            <input type="hidden" id="acContactPersonId" />
+            <div class="cp-typeahead-wrap">
+              <input id="acContactPersonInput" type="text" class="form-control"
+                     placeholder="Search for a person…" autocomplete="off" />
+              <div class="cp-typeahead-list" id="acContactPersonDropdown"></div>
+            </div>
+            <div id="acContactPersonSelected" class="mt-1 d-none">
+              <span class="badge border fw-semibold"
+                    style="background:#eef1fc;color:var(--brand);font-size:.82rem;padding:.35em .75em;border-radius:20px;border-color:#c9d4f5!important">
+                <span id="acContactPersonName"></span>
+                <button type="button" class="btn-close ms-1" style="font-size:.5rem"
+                        onclick="clearContactPerson('ac')"></button>
+              </span>
+            </div>
           </div>
           <div class="col-12">
             <label class="form-label small fw-semibold">Notes</label>
@@ -298,6 +393,35 @@
             <input id="ecPhone" type="text" class="form-control" />
           </div>
           <div class="col-12">
+            <label class="form-label small fw-semibold">Website</label>
+            <input id="ecWebsite" type="url" class="form-control" placeholder="https://…" />
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Address</label>
+            <input id="ecAddress" type="text" class="form-control" placeholder="Street, City, State ZIP" />
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Market Area</label>
+            <input id="ecMarketArea" type="text" class="form-control" />
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Contact Person</label>
+            <input type="hidden" id="ecContactPersonId" />
+            <div class="cp-typeahead-wrap">
+              <input id="ecContactPersonInput" type="text" class="form-control"
+                     placeholder="Search for a person…" autocomplete="off" />
+              <div class="cp-typeahead-list" id="ecContactPersonDropdown"></div>
+            </div>
+            <div id="ecContactPersonSelected" class="mt-1 d-none">
+              <span class="badge border fw-semibold"
+                    style="background:#eef1fc;color:var(--brand);font-size:.82rem;padding:.35em .75em;border-radius:20px;border-color:#c9d4f5!important">
+                <span id="ecContactPersonName"></span>
+                <button type="button" class="btn-close ms-1" style="font-size:.5rem"
+                        onclick="clearContactPerson('ec')"></button>
+              </span>
+            </div>
+          </div>
+          <div class="col-12">
             <label class="form-label small fw-semibold">Notes</label>
             <textarea id="ecNotes" class="form-control" rows="3"></textarea>
           </div>
@@ -317,6 +441,64 @@
 
 {% block extra_js %}
 <script>
+  const MAPS_API_KEY = "{{ google_maps_api_key|escapejs }}";
+  let _mapsApiLoaded = false;
+  let _mapsApiPromise = null;
+
+  function loadMapsApi() {
+    if (_mapsApiLoaded) return Promise.resolve();
+    if (_mapsApiPromise) return _mapsApiPromise;
+    _mapsApiPromise = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = `https://maps.googleapis.com/maps/api/js?key=${MAPS_API_KEY}`;
+      s.onload = () => { _mapsApiLoaded = true; resolve(); };
+      s.onerror = () => reject(new Error('Maps API failed to load'));
+      document.head.appendChild(s);
+    });
+    return _mapsApiPromise;
+  }
+
+  function showAddressText(address, fallback) {
+    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+    fallback.innerHTML =
+      `<i class="bi bi-geo-alt me-1"></i>${address}` +
+      `<a href="${mapsUrl}" target="_blank" rel="noopener"
+          class="ms-2 small text-decoration-none" style="color:var(--brand)">
+         <i class="bi bi-box-arrow-up-right me-1"></i>Open in Maps
+       </a>`;
+    fallback.classList.remove('d-none');
+  }
+
+  function renderAddressMap(address, mapContainer, fallback) {
+    mapContainer.innerHTML = '';
+    mapContainer.classList.add('d-none');
+    fallback.innerHTML = '';
+    fallback.classList.add('d-none');
+    if (!address) return;
+    if (MAPS_API_KEY) {
+      loadMapsApi().then(() => {
+        new google.maps.Geocoder().geocode({ address }, (results, status) => {
+          if (status === 'OK') {
+            mapContainer.classList.remove('d-none');
+            const map = new google.maps.Map(mapContainer, {
+              center: results[0].geometry.location,
+              zoom: 15,
+              mapTypeControl: false,
+              streetViewControl: false,
+              fullscreenControl: false,
+            });
+            new google.maps.Marker({ map, position: results[0].geometry.location, title: address });
+            showAddressText(address, fallback);
+          } else {
+            showAddressText(address, fallback);
+          }
+        });
+      }).catch(() => showAddressText(address, fallback));
+    } else {
+      showAddressText(address, fallback);
+    }
+  }
+
   function getCsrf() {
     const m = document.cookie.match(/csrftoken=([^;]+)/);
     return m ? m[1] : '';
@@ -374,13 +556,23 @@
 
     const tr = document.createElement('tr');
     tr.className = 'company-row';
-    tr.dataset.id     = c.id;
-    tr.dataset.name   = c.name;
-    tr.dataset.email  = c.email || '';
-    tr.dataset.phone  = c.phone || '';
-    tr.dataset.notes  = c.notes || '';
+    const cp = c.contact_person;
+    tr.dataset.id                = c.id;
+    tr.dataset.name              = c.name;
+    tr.dataset.email             = c.email || '';
+    tr.dataset.phone             = c.phone || '';
+    tr.dataset.address           = c.address || '';
+    tr.dataset.marketArea        = c.market_area || '';
+    tr.dataset.website           = c.website || '';
+    tr.dataset.notes             = c.notes || '';
+    tr.dataset.contactPersonId   = cp ? cp.id   : '';
+    tr.dataset.contactPersonName = cp ? cp.name : '';
     tr.dataset.search = `${(c.name||'').toLowerCase()} ${(c.email||'').toLowerCase()}`;
     tr.setAttribute('onclick', 'openCompanyDetail(this)');
+    const cpHtml = cp
+      ? `<a href="/people/?open=${cp.id}" class="text-decoration-none fw-semibold"
+            style="color:var(--brand)" onclick="event.stopPropagation()">${cp.name}</a>`
+      : '';
     tr.innerHTML = `
       <td>
         <div class="d-flex align-items-center gap-2">
@@ -388,6 +580,7 @@
           <span class="fw-semibold">${c.name}</span>
         </div>
       </td>
+      <td class="col-contact-person">${cpHtml}</td>
       <td class="col-contact">${emailHtml}${phoneHtml}</td>
       <td class="text-muted small" style="max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${notesPrev}</td>
       <td>
@@ -401,8 +594,9 @@
   const addModal = new bootstrap.Modal(document.getElementById('addCompanyModal'));
 
   function openAddCompany() {
-    ['acName','acEmail','acPhone','acNotes'].forEach(id => document.getElementById(id).value = '');
+    ['acName','acEmail','acPhone','acWebsite','acAddress','acMarketArea','acNotes'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('acError').classList.add('d-none');
+    clearContactPerson('ac');
     addModal.show();
   }
 
@@ -419,7 +613,11 @@
       name,
       email: document.getElementById('acEmail').value.trim(),
       phone: document.getElementById('acPhone').value.trim(),
+      website: document.getElementById('acWebsite').value.trim(),
+      address: document.getElementById('acAddress').value.trim(),
+      market_area: document.getElementById('acMarketArea').value.trim(),
       notes: document.getElementById('acNotes').value,
+      contact_person_id: document.getElementById('acContactPersonId').value || null,
     });
     if (!res.ok) {
       const data = await res.json();
@@ -440,12 +638,20 @@
 
   function openEditCompany(btn) {
     const row = btn.closest('tr');
-    document.getElementById('ecId').value    = row.dataset.id;
-    document.getElementById('ecName').value  = row.dataset.name;
-    document.getElementById('ecEmail').value = row.dataset.email;
-    document.getElementById('ecPhone').value = row.dataset.phone;
-    document.getElementById('ecNotes').value = row.dataset.notes || '';
+    document.getElementById('ecId').value         = row.dataset.id;
+    document.getElementById('ecName').value       = row.dataset.name;
+    document.getElementById('ecEmail').value      = row.dataset.email;
+    document.getElementById('ecPhone').value      = row.dataset.phone;
+    document.getElementById('ecWebsite').value    = row.dataset.website || '';
+    document.getElementById('ecAddress').value    = row.dataset.address || '';
+    document.getElementById('ecMarketArea').value = row.dataset.marketArea || '';
+    document.getElementById('ecNotes').value      = row.dataset.notes || '';
     document.getElementById('ecError').classList.add('d-none');
+    if (row.dataset.contactPersonId) {
+      selectContactPerson('ec', row.dataset.contactPersonId, row.dataset.contactPersonName);
+    } else {
+      clearContactPerson('ec');
+    }
     editModal.show();
   }
 
@@ -463,7 +669,11 @@
       name,
       email: document.getElementById('ecEmail').value.trim(),
       phone: document.getElementById('ecPhone').value.trim(),
+      website: document.getElementById('ecWebsite').value.trim(),
+      address: document.getElementById('ecAddress').value.trim(),
+      market_area: document.getElementById('ecMarketArea').value.trim(),
       notes: document.getElementById('ecNotes').value,
+      contact_person_id: document.getElementById('ecContactPersonId').value || null,
     });
     if (!res.ok) {
       const data = await res.json();
@@ -491,6 +701,15 @@
   // ── Company Detail Modal ──
   const companyDetailModal = new bootstrap.Modal(document.getElementById('companyDetailModal'));
   let _cdCurrentId = null;
+  let _pendingAddress = null;
+
+  document.getElementById('companyDetailModal').addEventListener('shown.bs.modal', () => {
+    if (_pendingAddress) {
+      const addr = _pendingAddress;
+      _pendingAddress = null;
+      renderAddressMap(addr, document.getElementById('cdMapContainer'), document.getElementById('cdAddressFallback'));
+    }
+  });
 
   function cdDateFmt(iso) {
     return new Date(iso + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -499,33 +718,53 @@
   function cdEventRows(events) {
     return events.map(ev => `
       <tr>
-        <td class="fw-semibold">${ev.name}</td>
+        <td class="fw-semibold"><a href="/events/?open=${ev.id}" class="text-decoration-none" style="color:inherit">${ev.name}</a></td>
         <td class="text-nowrap">${cdDateFmt(ev.date)}</td>
         <td class="text-muted">${ev.location || '—'}</td>
       </tr>`).join('');
+  }
+
+  function buildQuickInfo(email, phone, website, marketArea) {
+    const chips = [];
+    if (email) chips.push(`<a href="mailto:${email}" class="contact-chip"><i class="bi bi-envelope text-muted"></i>${email}</a>`);
+    if (phone) chips.push(`<span class="contact-chip"><i class="bi bi-telephone text-muted"></i>${phone}</span>`);
+    if (website) {
+      const label = website.replace(/^https?:\/\//, '').replace(/\/$/, '');
+      chips.push(`<a href="${website}" target="_blank" rel="noopener" class="contact-chip"><i class="bi bi-globe text-muted"></i>${label}</a>`);
+    }
+    if (marketArea) chips.push(`<span class="contact-chip"><i class="bi bi-map text-muted"></i>${marketArea}</span>`);
+    return chips.length ? chips.join('') : '<span class="text-muted small" style="line-height:2.1">No contact info on record.</span>';
   }
 
   async function openCompanyDetail(row) {
     const d = row.dataset;
     _cdCurrentId = d.id;
 
+    // Header
+    document.getElementById('cdAvatar').textContent = (d.name || '??').slice(0, 2).toUpperCase();
     document.getElementById('cdName').textContent = d.name;
+    document.getElementById('cdHeaderBadges').innerHTML = '';
 
-    const contacts = [];
-    if (d.email) contacts.push(`<a href="mailto:${d.email}" class="text-decoration-none"><i class="bi bi-envelope me-1 text-muted"></i>${d.email}</a>`);
-    if (d.phone) contacts.push(`<span><i class="bi bi-telephone me-1 text-muted"></i>${d.phone}</span>`);
-    document.getElementById('cdContact').innerHTML = contacts.length
-      ? contacts.join('') : '<span class="text-muted small">No contact info on record.</span>';
+    // Quick info (fast path from dataset)
+    document.getElementById('cdQuickInfo').innerHTML = buildQuickInfo(d.email, d.phone, d.website, d.marketArea);
 
-    const notesSection = document.getElementById('cdNotesSection');
-    if (d.notes) {
-      notesSection.classList.remove('d-none');
-      document.getElementById('cdNotes').textContent = d.notes;
+    // Address
+    const addrSection = document.getElementById('cdAddressSection');
+    const mapContainer = document.getElementById('cdMapContainer');
+    const addrFallback = document.getElementById('cdAddressFallback');
+    mapContainer.innerHTML = '';
+    mapContainer.classList.add('d-none');
+    addrFallback.innerHTML = '';
+    addrFallback.classList.add('d-none');
+    if (d.address) {
+      addrSection.classList.remove('d-none');
+      _pendingAddress = d.address;
     } else {
-      notesSection.classList.add('d-none');
+      addrSection.classList.add('d-none');
+      _pendingAddress = null;
     }
 
-    ['cdPeopleSection','cdNoPeople','cdUpcomingSection','cdPastSection','cdNoEvents']
+    ['cdContactPersonSection','cdPeopleSection','cdNoPeople','cdNotesSection','cdUpcomingSection','cdPastSection','cdNoEvents']
       .forEach(id => document.getElementById(id).classList.add('d-none'));
     document.getElementById('cdLoading').classList.remove('d-none');
 
@@ -542,7 +781,11 @@
       const c = await res.json();
       document.getElementById('cdLoading').classList.add('d-none');
 
-      // Refresh notes
+      // Refresh quick info from API (picks up website + market_area)
+      document.getElementById('cdQuickInfo').innerHTML = buildQuickInfo(c.email, c.phone, c.website, c.market_area);
+
+      // Notes
+      const notesSection = document.getElementById('cdNotesSection');
       if (c.notes) {
         notesSection.classList.remove('d-none');
         document.getElementById('cdNotes').textContent = c.notes;
@@ -550,17 +793,46 @@
         notesSection.classList.add('d-none');
       }
 
+      // Key contact
+      const cpSection = document.getElementById('cdContactPersonSection');
+      if (c.contact_person) {
+        cpSection.classList.remove('d-none');
+        const cp = c.contact_person;
+        const ini = (cp.name || '').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase();
+        const cpChips = [];
+        if (cp.email)             cpChips.push(`<a href="mailto:${cp.email}" class="contact-chip"><i class="bi bi-envelope text-muted"></i>${cp.email}</a>`);
+        if (cp.phone_number)      cpChips.push(`<span class="contact-chip"><i class="bi bi-telephone text-muted"></i>${cp.phone_number}</span>`);
+        if (cp.cell_phone_number) cpChips.push(`<span class="contact-chip"><i class="bi bi-phone text-muted"></i>${cp.cell_phone_number}</span>`);
+        document.getElementById('cdContactPersonCard').innerHTML = `
+          <div class="cd-person-card" style="background:#f8f9fc;cursor:pointer" onclick="window.location='/people/?open=${cp.id}'">
+            <div class="cd-person-avatar">${ini}</div>
+            <div style="flex:1;min-width:0">
+              <div class="fw-semibold text-dark">${cp.name}</div>
+              ${cp.title ? `<div class="text-muted small">${cp.title}</div>` : ''}
+            </div>
+            <i class="bi bi-chevron-right text-muted flex-shrink-0" style="font-size:.8rem"></i>
+          </div>
+          ${cpChips.length ? `<div class="d-flex flex-wrap gap-2 mt-2">${cpChips.join('')}</div>` : ''}`;
+      } else {
+        cpSection.classList.add('d-none');
+      }
+
       // People
-      if (c.people.length) {
+      if (c.people && c.people.length) {
         document.getElementById('cdPeopleSection').classList.remove('d-none');
         document.getElementById('cdPeopleCount').textContent = `(${c.people.length})`;
-        document.getElementById('cdPeopleBody').innerHTML = c.people.map(p => `
-          <tr>
-            <td class="fw-semibold">${p.name}</td>
-            <td class="text-muted">${p.title || '—'}</td>
-            <td>${p.email ? `<a href="mailto:${p.email}" class="text-decoration-none">${p.email}</a>` : '—'}</td>
-            <td class="text-muted">${p.phone_number || '—'}</td>
-          </tr>`).join('');
+        document.getElementById('cdPeopleList').innerHTML = c.people.map(p => {
+          const ini = (p.name || '').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase();
+          const meta = [p.title, p.phone_number].filter(Boolean).join(' · ');
+          return `<div class="cd-person-card" style="cursor:pointer" onclick="window.location='/people/?open=${p.id}'">
+            <div class="cd-person-avatar">${ini}</div>
+            <div style="flex:1;min-width:0">
+              <div class="fw-semibold text-dark">${p.name}</div>
+              ${meta ? `<div class="text-muted small" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${meta}</div>` : ''}
+            </div>
+            <i class="bi bi-chevron-right text-muted flex-shrink-0" style="font-size:.8rem"></i>
+          </div>`;
+        }).join('');
       } else {
         document.getElementById('cdNoPeople').classList.remove('d-none');
       }
@@ -582,5 +854,67 @@
         '<i class="bi bi-exclamation-triangle text-warning me-1"></i>Failed to load company details.';
     }
   }
+
+  // ── Contact person typeahead ──
+  function selectContactPerson(prefix, id, name) {
+    document.getElementById(prefix + 'ContactPersonId').value       = id;
+    document.getElementById(prefix + 'ContactPersonInput').value    = '';
+    document.getElementById(prefix + 'ContactPersonName').textContent = name;
+    document.getElementById(prefix + 'ContactPersonSelected').classList.remove('d-none');
+    document.getElementById(prefix + 'ContactPersonInput').classList.add('d-none');
+    document.getElementById(prefix + 'ContactPersonDropdown').classList.remove('show');
+  }
+
+  function clearContactPerson(prefix) {
+    document.getElementById(prefix + 'ContactPersonId').value    = '';
+    document.getElementById(prefix + 'ContactPersonInput').value = '';
+    document.getElementById(prefix + 'ContactPersonSelected').classList.add('d-none');
+    document.getElementById(prefix + 'ContactPersonInput').classList.remove('d-none');
+    document.getElementById(prefix + 'ContactPersonDropdown').classList.remove('show');
+  }
+
+  let _cpTimer = null;
+
+  function setupContactPersonTypeahead(prefix) {
+    const input = document.getElementById(prefix + 'ContactPersonInput');
+    const dd    = document.getElementById(prefix + 'ContactPersonDropdown');
+
+    input.addEventListener('input', () => {
+      const q = input.value.trim();
+      clearTimeout(_cpTimer);
+      if (!q) { dd.classList.remove('show'); return; }
+      _cpTimer = setTimeout(async () => {
+        const res = await fetch(`/people/search/?q=${encodeURIComponent(q)}`);
+        const people = await res.json();
+        dd.innerHTML = people.map(p => `
+          <div class="cp-typeahead-item" data-id="${p.id}" data-name="${p.name.replace(/"/g,'&quot;')}">
+            <strong>${p.name}</strong>
+            ${p.title || p.company ? `<div class="meta">${[p.title,p.company].filter(Boolean).join(' · ')}</div>` : ''}
+          </div>`).join('') || '<div class="cp-typeahead-item text-muted">No results</div>';
+        dd.querySelectorAll('.cp-typeahead-item[data-id]').forEach(item => {
+          item.addEventListener('click', () => selectContactPerson(prefix, item.dataset.id, item.dataset.name));
+        });
+        dd.classList.add('show');
+      }, 200);
+    });
+
+    document.addEventListener('click', e => {
+      if (!e.target.closest('.cp-typeahead-wrap')) dd.classList.remove('show');
+    });
+  }
+
+  setupContactPersonTypeahead('ac');
+  setupContactPersonTypeahead('ec');
+
+  // ── Auto-open company from ?open= URL param ──
+  (function () {
+    const params = new URLSearchParams(window.location.search);
+    const openId = params.get('open');
+    if (openId) {
+      history.replaceState({}, '', window.location.pathname);
+      const row = document.querySelector(`.company-row[data-id="${openId}"]`);
+      if (row) openCompanyDetail(row);
+    }
+  })();
 </script>
 {% endblock %}

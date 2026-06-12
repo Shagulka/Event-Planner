@@ -8,6 +8,8 @@ class Person(models.Model):
     name = models.CharField(max_length=100)
     email = models.EmailField()
     phone_number = models.CharField(max_length=20)
+    cell_phone_number = models.CharField(max_length=20, blank=True)
+    is_primary_contact = models.BooleanField(default=False)
     company = models.ManyToManyField(Client, blank=True)
     title = models.CharField(max_length=100, blank=True)
     is_watson_forsberg = models.BooleanField(default=False)

@@ -135,15 +135,25 @@
 
 {% block content %}
 <div class="container py-4">
-  <!-- Search -->
-  <div class="filter-bar mb-4">
-    <div class="input-group" style="max-width: 420px">
+  <!-- Search + type filter -->
+  <div class="d-flex flex-wrap align-items-center gap-3 mb-4">
+    <div class="input-group filter-bar" style="max-width: 380px">
       <span class="input-group-text bg-white border-end-0" style="border-radius: 30px 0 0 30px">
         <i class="bi bi-search text-muted"></i>
       </span>
       <input id="searchInput" type="text" class="form-control border-start-0"
              placeholder="Search events, clients, locations…"
              style="border-radius: 0 30px 30px 0" />
+    </div>
+    <div class="filter-bar">
+      <select id="typeFilter" class="form-select form-select-sm" style="min-width:160px;border-radius:30px">
+        <option value="">All types</option>
+        <option value="CONFERENCE">Conference</option>
+        <option value="MEETING">Meeting</option>
+        <option value="PARTY">Party</option>
+        <option value="FUNDRAISER">Fundraiser</option>
+        <option value="OTHER">Other</option>
+      </select>
     </div>
   </div>
 
@@ -220,6 +230,14 @@
             <i class="bi bi-bar-chart-fill me-1"></i>Details
           </p>
           <div class="row g-2" id="edStats"></div>
+        </div>
+
+        <!-- Budget breakdown -->
+        <div id="edBudgetSection" class="mb-4 d-none">
+          <p class="fw-semibold small text-uppercase mb-2" style="letter-spacing:.08em;color:var(--brand)">
+            <i class="bi bi-currency-dollar me-1"></i>Budget
+          </p>
+          <div class="rounded-3 border overflow-hidden" id="edBudgetContent"></div>
         </div>
 
         <!-- Notes -->
@@ -428,9 +446,20 @@
             <label class="form-label small fw-semibold">Time</label>
             <input id="ecTime" type="time" class="form-control" />
           </div>
-          <div class="col-12">
+          <div class="col-md-8">
             <label class="form-label small fw-semibold">Location</label>
             <input id="ecLocation" type="text" class="form-control" placeholder="Venue or address" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small fw-semibold">Event Type</label>
+            <select id="ecEventType" class="form-select">
+              <option value="">— None —</option>
+              <option value="CONFERENCE">Conference</option>
+              <option value="MEETING">Meeting</option>
+              <option value="PARTY">Party</option>
+              <option value="FUNDRAISER">Fundraiser</option>
+              <option value="OTHER">Other</option>
+            </select>
           </div>
           <div class="col-md-6">
             <label class="form-label small fw-semibold">Client</label>
@@ -464,17 +493,37 @@
             <label class="form-label small fw-semibold">Registrations Due</label>
             <input id="ecRegDue" type="date" class="form-control" />
           </div>
-          <div class="col-md-4">
+          <div class="col-md-6">
             <label class="form-label small fw-semibold">Tickets</label>
             <input id="ecTickets" type="number" min="0" class="form-control" placeholder="—" />
           </div>
-          <div class="col-md-4">
-            <label class="form-label small fw-semibold">Proposed Budget ($)</label>
-            <input id="ecProposed" type="number" min="0" step="0.01" class="form-control" placeholder="—" />
-          </div>
-          <div class="col-md-4">
-            <label class="form-label small fw-semibold">Approved Budget ($)</label>
-            <input id="ecApproved" type="number" min="0" step="0.01" class="form-control" placeholder="—" />
+          <div class="col-12">
+            <label class="form-label small fw-semibold mb-2">Budget</label>
+            <div class="rounded-3 border overflow-hidden">
+              <table class="table table-sm mb-0" style="font-size:.84rem">
+                <thead style="background:var(--brand);color:#fff">
+                  <tr><th class="py-2 px-3">Category</th><th class="py-2 px-3 text-end">Proposed ($)</th><th class="py-2 px-3 text-end">Actual ($)</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td class="px-3 text-muted"><i class="bi bi-box-seam me-1"></i>Materials</td>
+                      <td class="p-1"><input type="number" id="ecBudMatP" class="form-control form-control-sm text-end" min="0" step="0.01" placeholder="0.00" /></td>
+                      <td class="p-1"><input type="number" id="ecBudMatA" class="form-control form-control-sm text-end" min="0" step="0.01" placeholder="0.00" /></td></tr>
+                  <tr><td class="px-3 text-muted"><i class="bi bi-building me-1"></i>Venue</td>
+                      <td class="p-1"><input type="number" id="ecBudVenP" class="form-control form-control-sm text-end" min="0" step="0.01" placeholder="0.00" /></td>
+                      <td class="p-1"><input type="number" id="ecBudVenA" class="form-control form-control-sm text-end" min="0" step="0.01" placeholder="0.00" /></td></tr>
+                  <tr><td class="px-3 text-muted"><i class="bi bi-ticket-perforated me-1"></i>Tickets</td>
+                      <td class="p-1"><input type="number" id="ecBudTicP" class="form-control form-control-sm text-end" min="0" step="0.01" placeholder="0.00" /></td>
+                      <td class="p-1"><input type="number" id="ecBudTicA" class="form-control form-control-sm text-end" min="0" step="0.01" placeholder="0.00" /></td></tr>
+                  <tr><td class="px-3 text-muted"><i class="bi bi-three-dots me-1"></i>Misc</td>
+                      <td class="p-1"><input type="number" id="ecBudMisP" class="form-control form-control-sm text-end" min="0" step="0.01" placeholder="0.00" /></td>
+                      <td class="p-1"><input type="number" id="ecBudMisA" class="form-control form-control-sm text-end" min="0" step="0.01" placeholder="0.00" /></td></tr>
+                  <tr style="background:#f8f9fc">
+                      <td class="px-3 fw-semibold">Total</td>
+                      <td class="px-3 text-end fw-semibold" id="ecBudTotalP">—</td>
+                      <td class="px-3 text-end fw-semibold" id="ecBudTotalA">—</td></tr>
+                </tbody>
+              </table>
+            </div>
           </div>
           <div class="col-12">
             <label class="form-label small fw-semibold">Description</label>
@@ -522,9 +571,20 @@
             <label class="form-label small fw-semibold">Time</label>
             <input id="eeTime" type="time" class="form-control" />
           </div>
-          <div class="col-12">
+          <div class="col-md-8">
             <label class="form-label small fw-semibold">Location</label>
             <input id="eeLocation" type="text" class="form-control" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small fw-semibold">Event Type</label>
+            <select id="eeEventType" class="form-select">
+              <option value="">— None —</option>
+              <option value="CONFERENCE">Conference</option>
+              <option value="MEETING">Meeting</option>
+              <option value="PARTY">Party</option>
+              <option value="FUNDRAISER">Fundraiser</option>
+              <option value="OTHER">Other</option>
+            </select>
           </div>
           <div class="col-md-6">
             <label class="form-label small fw-semibold">Client</label>
@@ -558,17 +618,37 @@
             <label class="form-label small fw-semibold">Registrations Due</label>
             <input id="eeRegDue" type="date" class="form-control" />
           </div>
-          <div class="col-md-4">
+          <div class="col-md-6">
             <label class="form-label small fw-semibold">Tickets</label>
             <input id="eeTickets" type="number" min="0" class="form-control" placeholder="—" />
           </div>
-          <div class="col-md-4">
-            <label class="form-label small fw-semibold">Proposed Budget ($)</label>
-            <input id="eeProposed" type="number" min="0" step="0.01" class="form-control" placeholder="—" />
-          </div>
-          <div class="col-md-4">
-            <label class="form-label small fw-semibold">Approved Budget ($)</label>
-            <input id="eeApproved" type="number" min="0" step="0.01" class="form-control" placeholder="—" />
+          <div class="col-12">
+            <label class="form-label small fw-semibold mb-2">Budget</label>
+            <div class="rounded-3 border overflow-hidden">
+              <table class="table table-sm mb-0" style="font-size:.84rem">
+                <thead style="background:var(--brand);color:#fff">
+                  <tr><th class="py-2 px-3">Category</th><th class="py-2 px-3 text-end">Proposed ($)</th><th class="py-2 px-3 text-end">Actual ($)</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td class="px-3 text-muted"><i class="bi bi-box-seam me-1"></i>Materials</td>
+                      <td class="p-1"><input type="number" id="eeBudMatP" class="form-control form-control-sm text-end" min="0" step="0.01" placeholder="0.00" /></td>
+                      <td class="p-1"><input type="number" id="eeBudMatA" class="form-control form-control-sm text-end" min="0" step="0.01" placeholder="0.00" /></td></tr>
+                  <tr><td class="px-3 text-muted"><i class="bi bi-building me-1"></i>Venue</td>
+                      <td class="p-1"><input type="number" id="eeBudVenP" class="form-control form-control-sm text-end" min="0" step="0.01" placeholder="0.00" /></td>
+                      <td class="p-1"><input type="number" id="eeBudVenA" class="form-control form-control-sm text-end" min="0" step="0.01" placeholder="0.00" /></td></tr>
+                  <tr><td class="px-3 text-muted"><i class="bi bi-ticket-perforated me-1"></i>Tickets</td>
+                      <td class="p-1"><input type="number" id="eeBudTicP" class="form-control form-control-sm text-end" min="0" step="0.01" placeholder="0.00" /></td>
+                      <td class="p-1"><input type="number" id="eeBudTicA" class="form-control form-control-sm text-end" min="0" step="0.01" placeholder="0.00" /></td></tr>
+                  <tr><td class="px-3 text-muted"><i class="bi bi-three-dots me-1"></i>Misc</td>
+                      <td class="p-1"><input type="number" id="eeBudMisP" class="form-control form-control-sm text-end" min="0" step="0.01" placeholder="0.00" /></td>
+                      <td class="p-1"><input type="number" id="eeBudMisA" class="form-control form-control-sm text-end" min="0" step="0.01" placeholder="0.00" /></td></tr>
+                  <tr style="background:#f8f9fc">
+                      <td class="px-3 fw-semibold">Total</td>
+                      <td class="px-3 text-end fw-semibold" id="eeBudTotalP">—</td>
+                      <td class="px-3 text-end fw-semibold" id="eeBudTotalA">—</td></tr>
+                </tbody>
+              </table>
+            </div>
           </div>
           <div class="col-12">
             <label class="form-label small fw-semibold">Description</label>
@@ -611,13 +691,89 @@
     });
   }
 
-  // ══ Event card search ══
-  document.getElementById("searchInput").addEventListener("input", function () {
-    const q = this.value.toLowerCase().trim();
-    document.querySelectorAll(".event-item").forEach((el) => {
-      el.style.display = el.textContent.toLowerCase().includes(q) ? "" : "none";
+  // ══ Budget helpers ══
+  const BUD_CATS = [
+    { key: 'MatP', keyA: 'MatA', label: 'Materials', icon: 'bi-box-seam' },
+    { key: 'VenP', keyA: 'VenA', label: 'Venue',     icon: 'bi-building' },
+    { key: 'TicP', keyA: 'TicA', label: 'Tickets',   icon: 'bi-ticket-perforated' },
+    { key: 'MisP', keyA: 'MisA', label: 'Misc',      icon: 'bi-three-dots' },
+  ];
+
+  function fmtMoney(n) {
+    return n > 0 ? '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
+  }
+
+  function updateBudgetTotals(prefix) {
+    let tp = 0, ta = 0;
+    BUD_CATS.forEach(c => {
+      tp += parseFloat(document.getElementById(prefix + 'Bud' + c.key)?.value) || 0;
+      ta += parseFloat(document.getElementById(prefix + 'Bud' + c.keyA)?.value) || 0;
+    });
+    document.getElementById(prefix + 'BudTotalP').textContent = fmtMoney(tp);
+    document.getElementById(prefix + 'BudTotalA').textContent = fmtMoney(ta);
+  }
+
+  // Wire up live total updates once DOM is ready
+  BUD_CATS.forEach(c => {
+    ['ec','ee'].forEach(pfx => {
+      document.getElementById(pfx + 'Bud' + c.key)?.addEventListener('input', () => updateBudgetTotals(pfx));
+      document.getElementById(pfx + 'Bud' + c.keyA)?.addEventListener('input', () => updateBudgetTotals(pfx));
     });
   });
+
+  function clearBudgetFields(prefix) {
+    BUD_CATS.forEach(c => {
+      document.getElementById(prefix + 'Bud' + c.key).value  = '';
+      document.getElementById(prefix + 'Bud' + c.keyA).value = '';
+    });
+    document.getElementById(prefix + 'BudTotalP').textContent = '—';
+    document.getElementById(prefix + 'BudTotalA').textContent = '—';
+  }
+
+  function setBudgetFields(prefix, d) {
+    const map = {MatP:'budMatP', MatA:'budMatA', VenP:'budVenP', VenA:'budVenA',
+                 TicP:'budTicP', TicA:'budTicA', MisP:'budMisP', MisA:'budMisA'};
+    BUD_CATS.forEach(c => {
+      document.getElementById(prefix + 'Bud' + c.key).value  = d[map[c.key]]  || '';
+      document.getElementById(prefix + 'Bud' + c.keyA).value = d[map[c.keyA]] || '';
+    });
+    updateBudgetTotals(prefix);
+  }
+
+  function getBudgetPayload(prefix) {
+    return {
+      budget_materials_proposed: parseFloat(document.getElementById(prefix + 'BudMatP').value) || null,
+      budget_materials_actual:   parseFloat(document.getElementById(prefix + 'BudMatA').value) || null,
+      budget_venue_proposed:     parseFloat(document.getElementById(prefix + 'BudVenP').value) || null,
+      budget_venue_actual:       parseFloat(document.getElementById(prefix + 'BudVenA').value) || null,
+      budget_tickets_proposed:   parseFloat(document.getElementById(prefix + 'BudTicP').value) || null,
+      budget_tickets_actual:     parseFloat(document.getElementById(prefix + 'BudTicA').value) || null,
+      budget_misc_proposed:      parseFloat(document.getElementById(prefix + 'BudMisP').value) || null,
+      budget_misc_actual:        parseFloat(document.getElementById(prefix + 'BudMisA').value) || null,
+    };
+  }
+
+  // ══ Event card search + type filter ══
+  const EVENT_TYPE_META = {
+    CONFERENCE: { label: 'Conference', color: '#3b5bdb' },
+    MEETING:    { label: 'Meeting',    color: '#0ca678' },
+    PARTY:      { label: 'Party',      color: '#7c3aed' },
+    FUNDRAISER: { label: 'Fundraiser', color: '#e67700' },
+    OTHER:      { label: 'Other',      color: '#6c757d' },
+  };
+
+  function applyEventFilters() {
+    const q    = document.getElementById("searchInput").value.toLowerCase().trim();
+    const type = document.getElementById("typeFilter").value;
+    document.querySelectorAll(".event-item").forEach(el => {
+      const matchText = !q || el.textContent.toLowerCase().includes(q);
+      const matchType = !type || el.dataset.eventType === type;
+      el.style.display = (matchText && matchType) ? "" : "none";
+    });
+  }
+
+  document.getElementById("searchInput").addEventListener("input", applyEventFilters);
+  document.getElementById("typeFilter").addEventListener("change", applyEventFilters);
 
   // ══════════════════════════════════════════
   //  GUEST MODAL
@@ -728,25 +884,34 @@
       const people = await res.json();
       const section = document.getElementById("recommendedSection");
       const list = document.getElementById("recommendedList");
-      if (!people.length) { section.classList.add("d-none"); return; }
-      list.innerHTML = people.map((p) => `
+
+      // Filter out people already on guest list
+      const recommended = people.filter(p => !allGuests.find(g => g.person_id == p.id));
+
+      if (!recommended.length) { section.classList.add("d-none"); return; }
+      list.innerHTML = recommended.map((p) => `
         <button type="button"
                 class="btn btn-sm border fw-semibold text-start recommended-chip"
                 style="background:#fff;border-color:#c9d4f5!important;border-radius:20px;max-width:260px"
-                onclick="addRecommended(${p.id}, '${p.name.replace(/'/g, "\\'")}', this)">
+                data-person-id="${p.id}" data-person-name="${p.name.replace(/"/g, '&quot;')}">
           <span class="d-block" style="font-size:.82rem">${p.name}</span>
           ${p.title || p.company
             ? `<span class="text-muted" style="font-size:.72rem">${[p.title, p.company].filter(Boolean).join(' · ')}</span>`
             : ''}
         </button>`).join('');
       section.classList.remove("d-none");
+
+      // Add event listeners to recommended chips
+      list.querySelectorAll('.recommended-chip').forEach(btn => {
+        btn.addEventListener('click', () => addRecommended(btn.dataset.personId, btn.dataset.personName, btn));
+      });
     } catch { /* recommendations are non-critical */ }
   }
 
   async function addRecommended(personId, name, btn) {
     btn.disabled = true;
     btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span>`;
-    await addExistingGuest(personId, name);
+    await addExistingGuest(parseInt(personId), name);
     // remove chip since person is now on the list
     btn.closest('.recommended-chip')?.remove();
     if (!document.querySelectorAll('.recommended-chip').length) {
@@ -892,7 +1057,7 @@
 
     let html = people
       .map((p) => `
-  <div class="typeahead-item" onclick="addExistingGuest(${p.id}, '${p.name.replace(/'/g, "\\'")}')">
+  <div class="typeahead-item" data-person-id="${p.id}" data-person-name="${p.name.replace(/"/g, '&quot;')}">
     <strong>${p.name}</strong>
     ${p.company || p.title ? `<div class="meta">${[p.title, p.company].filter(Boolean).join(" · ")}</div>` : ""}
   </div>`)
@@ -901,18 +1066,30 @@
     // Add bulk invite by company option if search matches company name
     const companyMatches = Object.keys(byCompany).filter(co => co.toLowerCase().includes(q.toLowerCase()));
     if (companyMatches.length > 0) {
-      html += companyMatches.map(co => `
-  <div class="typeahead-item" style="background:#f0f3fc;border-top:1px solid #e9ecef" onclick="bulkInviteCompany('${co.replace(/'/g, "\\'")}', ${JSON.stringify(byCompany[co].map(p=>p.id)).replace(/"/g, '&quot;')})">
+      html += companyMatches.map((co, idx) => `
+  <div class="typeahead-item bulk-invite-item" style="background:#f0f3fc;border-top:1px solid #e9ecef" data-company-name="${co.replace(/"/g, '&quot;')}" data-person-ids="${byCompany[co].map(p=>p.id).join(',')}">
     <i class="bi bi-people-fill me-1" style="color:var(--brand)"></i><strong>${co}</strong>
     <div class="meta">${byCompany[co].length} person${byCompany[co].length > 1 ? 's' : ''}</div>
   </div>`).join('');
     }
 
-    html += `<div class="typeahead-new" onclick="openNewPerson('${q.replace(/'/g, "\\'")}')">
+    html += `<div class="typeahead-new" data-new-person="${q.replace(/"/g, '&quot;')}">
   <i class="bi bi-plus-circle me-1"></i>Create "<strong>${q}</strong>"
 </div>`;
 
     dd.innerHTML = html;
+
+    // Attach event listeners
+    dd.querySelectorAll('.typeahead-item[data-person-id]').forEach(item => {
+      item.addEventListener('click', () => addExistingGuest(item.dataset.personId, item.dataset.personName));
+    });
+    dd.querySelectorAll('.typeahead-item.bulk-invite-item').forEach(item => {
+      item.addEventListener('click', () => bulkInviteCompany(item.dataset.companyName, item.dataset.personIds.split(',')));
+    });
+    dd.querySelector('.typeahead-new')?.addEventListener('click', (e) => {
+      openNewPerson(e.currentTarget.dataset.newPerson);
+    });
+
     dd.classList.add("show");
   }
 
@@ -922,18 +1099,31 @@
     const already = allGuests.find((g) => g.person_id === personId);
     if (already) { alert(`${name} is already on the guest list.`); return; }
     const res = await postJSON(`/events/${currentEventId}/guests/add/`, { person_id: personId });
+    if (!res.ok) {
+      const data = await res.json();
+      if (res.status === 409 && data.already_exists) {
+        alert(`${name} is already on the guest list.`);
+        return;
+      }
+      alert('Failed to add guest');
+      return;
+    }
     const data = await res.json();
-    allGuests.push(data);
-    buildSummary(allGuests);
-    renderGuests(applyGuestFilter(allGuests));
-    document.getElementById("guestModalSubtitle").textContent =
-      `${allGuests.length} guest${allGuests.length !== 1 ? "s" : ""} on record`;
+    if (!data.already_exists) {
+      allGuests.push(data);
+      buildSummary(allGuests);
+      renderGuests(applyGuestFilter(allGuests));
+      document.getElementById("guestModalSubtitle").textContent =
+        `${allGuests.length} guest${allGuests.length !== 1 ? "s" : ""} on record`;
+    } else {
+      alert(`${name} is already on the guest list.`);
+    }
   }
 
   async function bulkInviteCompany(companyName, personIds) {
     closeDropdown();
-    const ids = JSON.parse(personIds);
-    const notAlreadyAdded = ids.filter(id => !allGuests.find(g => g.person_id === id));
+    const ids = Array.isArray(personIds) ? personIds.map(Number) : JSON.parse(personIds);
+    const notAlreadyAdded = ids.filter(id => !allGuests.find(g => g.person_id == id));
     if (notAlreadyAdded.length === 0) {
       alert(`All people from ${companyName} are already on the guest list.`);
       return;
@@ -941,11 +1131,26 @@
     const count = notAlreadyAdded.length;
     if (!confirm(`Add ${count} person${count > 1 ? 's' : ''} from ${companyName} to the guest list?`)) return;
 
+    let addedCount = 0;
+    let skippedCount = 0;
+
     for (const personId of notAlreadyAdded) {
       try {
         const res = await postJSON(`/events/${currentEventId}/guests/add/`, { person_id: personId });
-        const data = await res.json();
-        allGuests.push(data);
+        if (res.ok) {
+          const data = await res.json();
+          if (!data.already_exists) {
+            allGuests.push(data);
+            addedCount++;
+          } else {
+            skippedCount++;
+          }
+        } else {
+          const errData = await res.json();
+          if (res.status === 409 && errData.already_exists) {
+            skippedCount++;
+          }
+        }
       } catch (e) { /* continue on error */ }
     }
 
@@ -954,7 +1159,14 @@
     document.getElementById("guestModalSubtitle").textContent =
       `${allGuests.length} guest${allGuests.length !== 1 ? "s" : ""} on record`;
     document.getElementById("personSearch").value = "";
-    alert(`Added ${notAlreadyAdded.length} guest${notAlreadyAdded.length > 1 ? 's' : ''} from ${companyName}`);
+
+    if (addedCount > 0 && skippedCount > 0) {
+      alert(`Added ${addedCount} guest${addedCount > 1 ? 's' : ''} from ${companyName}. ${skippedCount} already on list.`);
+    } else if (addedCount > 0) {
+      alert(`Added ${addedCount} guest${addedCount > 1 ? 's' : ''} from ${companyName}`);
+    } else {
+      alert(`All people from ${companyName} were already on the guest list.`);
+    }
   }
 
   // ══ New Person modal ══
@@ -1062,8 +1274,10 @@
   const eventCreateModal = new bootstrap.Modal(document.getElementById("eventCreateModal"));
 
   async function openEventCreate() {
-    ["ecName","ecDate","ecTime","ecLocation","ecRegDue","ecTickets","ecProposed","ecApproved","ecDescription","ecNotes"]
+    ["ecName","ecDate","ecTime","ecLocation","ecRegDue","ecTickets","ecDescription","ecNotes"]
       .forEach((id) => (document.getElementById(id).value = ""));
+    document.getElementById("ecEventType").value = "";
+    clearBudgetFields("ec");
     document.getElementById("ecError").classList.add("d-none");
     document.getElementById("ecNewClientRow").classList.add("d-none");
     document.getElementById("ecNewClientBtn").classList.remove("d-none");
@@ -1086,13 +1300,13 @@
       name, date,
       time: document.getElementById("ecTime").value || null,
       location: document.getElementById("ecLocation").value.trim(),
+      event_type: document.getElementById("ecEventType").value || '',
       client_id: document.getElementById("ecClientId").value || null,
       registrations_due: document.getElementById("ecRegDue").value || null,
       num_tickets: document.getElementById("ecTickets").value || null,
-      proposed_amount: document.getElementById("ecProposed").value || null,
-      approved_amount: document.getElementById("ecApproved").value || null,
       description: document.getElementById("ecDescription").value.trim(),
       notes: document.getElementById("ecNotes").value.trim(),
+      ...getBudgetPayload("ec"),
     });
     if (!res.ok) {
       const data = await res.json();
@@ -1208,10 +1422,10 @@
     document.getElementById("eeLocation").value = d.location;
     document.getElementById("eeRegDue").value = d.regDue || "";
     document.getElementById("eeTickets").value = d.tickets || "";
-    document.getElementById("eeProposed").value = d.proposed || "";
-    document.getElementById("eeApproved").value = d.approved || "";
     document.getElementById("eeDescription").value = d.description;
     document.getElementById("eeNotes").value = d.notes;
+    document.getElementById("eeEventType").value = d.eventType || '';
+    setBudgetFields("ee", d);
     document.getElementById("eeError").classList.add("d-none");
     document.getElementById("eeNewClientRow").classList.add("d-none");
     document.getElementById("eeNewClientBtn").classList.remove("d-none");
@@ -1250,13 +1464,13 @@
       name, date,
       time: document.getElementById("eeTime").value || null,
       location: document.getElementById("eeLocation").value.trim(),
+      event_type: document.getElementById("eeEventType").value || '',
       client_id: document.getElementById("eeClientId").value || null,
       registrations_due: document.getElementById("eeRegDue").value || null,
       num_tickets: document.getElementById("eeTickets").value || null,
-      proposed_amount: document.getElementById("eeProposed").value || null,
-      approved_amount: document.getElementById("eeApproved").value || null,
       description: document.getElementById("eeDescription").value.trim(),
       notes: document.getElementById("eeNotes").value.trim(),
+      ...getBudgetPayload("ee"),
     });
     if (!res.ok) {
       const data = await res.json();
@@ -1345,9 +1559,14 @@
     // Header colour
     document.getElementById('edHeader').style.background = isUpcoming ? 'var(--brand)' : '#6c757d';
     document.getElementById('edTitle').textContent = d.name;
-    document.getElementById('edBadges').innerHTML = clientName
+    const typeMeta = d.eventType && EVENT_TYPE_META[d.eventType];
+    const typeBadge = typeMeta
+      ? `<span class="badge rounded-pill" style="background:rgba(255,255,255,.22);color:#fff;font-size:.7rem">${typeMeta.label}</span>`
+      : '';
+    const clientBadgeHtml = clientName
       ? `<span class="badge" style="background:var(--accent);font-size:.7rem;border-radius:20px;padding:.25em .75em">${clientName}</span>`
       : '';
+    document.getElementById('edBadges').innerHTML = typeBadge + clientBadgeHtml;
 
     // Date / time row
     const dateFmt = d.date
@@ -1387,13 +1606,11 @@
       descSection.classList.add('d-none');
     }
 
-    // Stats grid
+    // Stats grid (tickets + reg due only)
     const statsSection = document.getElementById('edStatsSection');
     const statItems = [];
-    if (d.proposed) statItems.push(['bi-currency-dollar',        'Proposed', `$${parseFloat(d.proposed).toLocaleString()}`]);
-    if (d.approved) statItems.push(['bi-check-circle-fill',      'Approved', `$${parseFloat(d.approved).toLocaleString()}`]);
-    if (d.tickets)  statItems.push(['bi-ticket-perforated-fill', 'Tickets',  d.tickets]);
-    if (d.regDue)   statItems.push(['bi-hourglass-split',        'Reg. Due',
+    if (d.tickets)  statItems.push(['bi-ticket-perforated-fill', 'Tickets', d.tickets]);
+    if (d.regDue)   statItems.push(['bi-hourglass-split', 'Reg. Due',
       new Date(d.regDue + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })]);
     if (statItems.length) {
       statsSection.classList.remove('d-none');
@@ -1407,6 +1624,62 @@
         </div>`).join('');
     } else {
       statsSection.classList.add('d-none');
+    }
+
+    // Budget breakdown
+    const budgetSection = document.getElementById('edBudgetSection');
+    const budRows = BUD_CATS.map(c => {
+      const p = d[c.key.replace('P','').toLowerCase() === 'mat' ? 'budMatP' :
+                  c.key === 'VenP' ? 'budVenP' : c.key === 'TicP' ? 'budTicP' : 'budMisP'];
+      // Use dataset key mapping
+      return null; // placeholder
+    });
+    const catMap = [
+      { label:'Materials', icon:'bi-box-seam',         kp:'budMatP', ka:'budMatA' },
+      { label:'Venue',     icon:'bi-building',          kp:'budVenP', ka:'budVenA' },
+      { label:'Tickets',   icon:'bi-ticket-perforated', kp:'budTicP', ka:'budTicA' },
+      { label:'Misc',      icon:'bi-three-dots',        kp:'budMisP', ka:'budMisA' },
+    ];
+    const hasBudget = catMap.some(c => d[c.kp] || d[c.ka]);
+    if (hasBudget) {
+      budgetSection.classList.remove('d-none');
+      let totalP = 0, totalA = 0;
+      const bodyRows = catMap.map(c => {
+        const p = parseFloat(d[c.kp]) || 0;
+        const a = parseFloat(d[c.ka]) || 0;
+        totalP += p; totalA += a;
+        const variance = a && p ? a - p : null;
+        const varHtml = variance !== null
+          ? `<span style="color:${variance <= 0 ? '#198754' : '#dc3545'};font-size:.8rem">${variance <= 0 ? '▼' : '▲'} $${Math.abs(variance).toLocaleString('en-US',{minimumFractionDigits:2})}</span>`
+          : '';
+        return `<tr>
+          <td class="px-3 py-2 text-muted" style="font-size:.85rem"><i class="bi ${c.icon} me-1"></i>${c.label}</td>
+          <td class="px-3 py-2 text-end" style="font-size:.85rem">${p ? '$'+p.toLocaleString('en-US',{minimumFractionDigits:2}) : '—'}</td>
+          <td class="px-3 py-2 text-end" style="font-size:.85rem">${a ? '$'+a.toLocaleString('en-US',{minimumFractionDigits:2}) : '—'}</td>
+          <td class="px-3 py-2 text-end">${varHtml}</td>
+        </tr>`;
+      }).join('');
+      const totVar = totalA && totalP ? totalA - totalP : null;
+      const totVarHtml = totVar !== null
+        ? `<span style="color:${totVar <= 0 ? '#198754' : '#dc3545'};font-size:.82rem">${totVar <= 0 ? '▼' : '▲'} $${Math.abs(totVar).toLocaleString('en-US',{minimumFractionDigits:2})}</span>`
+        : '';
+      document.getElementById('edBudgetContent').innerHTML = `
+        <table class="table table-sm mb-0" style="font-size:.85rem">
+          <thead style="background:var(--brand);color:#fff">
+            <tr><th class="py-2 px-3">Category</th><th class="py-2 px-3 text-end">Proposed</th><th class="py-2 px-3 text-end">Actual</th><th class="py-2 px-3 text-end">Variance</th></tr>
+          </thead>
+          <tbody>${bodyRows}</tbody>
+          <tfoot style="background:#f8f9fc">
+            <tr class="fw-semibold">
+              <td class="px-3 py-2">Total</td>
+              <td class="px-3 py-2 text-end">${totalP ? '$'+totalP.toLocaleString('en-US',{minimumFractionDigits:2}) : '—'}</td>
+              <td class="px-3 py-2 text-end">${totalA ? '$'+totalA.toLocaleString('en-US',{minimumFractionDigits:2}) : '—'}</td>
+              <td class="px-3 py-2 text-end">${totVarHtml}</td>
+            </tr>
+          </tfoot>
+        </table>`;
+    } else {
+      budgetSection.classList.add('d-none');
     }
 
     // Notes

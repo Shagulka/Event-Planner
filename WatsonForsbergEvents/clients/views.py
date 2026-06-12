@@ -1,5 +1,6 @@
 import datetime
 import json
+from django.conf import settings
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET, require_POST
 from django.contrib.auth.decorators import login_required
@@ -10,7 +11,10 @@ from .models import Client
 @login_required
 def index(request):
     clients = Client.objects.select_related('contact_person').order_by('name')
-    return render(request, 'company_list.html', {'clients': clients})
+    return render(request, 'company_list.html', {
+        'clients': clients,
+        'google_maps_api_key': settings.GOOGLE_MAPS_API_KEY,
+    })
 
 
 @login_required
@@ -32,6 +36,7 @@ def _contact_person_data(client):
         'name': cp.name,
         'title': cp.title,
         'email': cp.email,
+        'cell_phone_number': cp.cell_phone_number,
         'phone_number': cp.phone_number,
     }
 
@@ -69,6 +74,9 @@ def client_detail(request, client_id):
         'name': client.name,
         'email': client.email,
         'phone': client.phone,
+        'address': client.address,
+        'market_area': client.market_area,
+        'website': client.website,
         'notes': client.notes,
         'contact_person': _contact_person_data(client),
         'people': [
@@ -101,13 +109,18 @@ def create_client(request):
         name=name,
         email=data.get('email', '').strip(),
         phone=data.get('phone', '').strip(),
+        address=data.get('address', '').strip(),
+        market_area=data.get('market_area', '').strip(),
+        website=data.get('website', '').strip(),
         notes=data.get('notes', ''),
         contact_person_id=contact_person_id,
     )
     client.refresh_from_db()
     return JsonResponse({
         'id': client.id, 'name': client.name,
-        'email': client.email, 'phone': client.phone, 'notes': client.notes,
+        'email': client.email, 'phone': client.phone,
+        'address': client.address, 'market_area': client.market_area,
+        'notes': client.notes,
         'contact_person': _contact_person_data(client),
     })
 
@@ -126,13 +139,18 @@ def update_client(request, client_id):
     client.name = name
     client.email = data.get('email', '').strip()
     client.phone = data.get('phone', '').strip()
+    client.address = data.get('address', '').strip()
+    client.market_area = data.get('market_area', '').strip()
+    client.website = data.get('website', '').strip()
     client.notes = data.get('notes', '')
     client.contact_person_id = data.get('contact_person_id') or None
     client.save()
     client.refresh_from_db()
     return JsonResponse({
         'id': client.id, 'name': client.name,
-        'email': client.email, 'phone': client.phone, 'notes': client.notes,
+        'email': client.email, 'phone': client.phone,
+        'address': client.address, 'market_area': client.market_area,
+        'notes': client.notes,
         'contact_person': _contact_person_data(client),
     })
 

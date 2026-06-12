@@ -64,11 +64,9 @@
   .btn-action.del:hover   { background: #fde8ea; }
 
   #addPersonModal .modal-header,
-  #editPersonModal .modal-header,
-  #personDetailModal .modal-header { background: var(--brand); color: #fff; }
+  #editPersonModal .modal-header { background: var(--brand); color: #fff; }
   #addPersonModal .modal-header .btn-close,
-  #editPersonModal .modal-header .btn-close,
-  #personDetailModal .modal-header .btn-close { filter: invert(1); }
+  #editPersonModal .modal-header .btn-close { filter: invert(1); }
 
   .pd-section-label {
     font-size: 0.72rem;
@@ -77,6 +75,38 @@
     letter-spacing: 0.08em;
     color: var(--brand);
     margin-bottom: 0.5rem;
+  }
+
+  /* ── Person detail modal ── */
+  #personDetailModal .modal-content {
+    border: none; border-radius: 16px; overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,.18);
+  }
+  .pd-avatar-lg {
+    width: 56px; height: 56px; border-radius: 50%;
+    background: rgba(255,255,255,.22); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.25rem; font-weight: 700; flex-shrink: 0;
+  }
+  .contact-chip {
+    display: inline-flex; align-items: center; gap: .4rem;
+    padding: .35rem .8rem; border-radius: 20px; font-size: .84rem;
+    border: 1px solid #e0e3ed; background: #fff; color: #444;
+    text-decoration: none; transition: background .12s, border-color .12s;
+  }
+  a.contact-chip:hover { background: #eef1fc; border-color: var(--brand); color: var(--brand); }
+  .pd-company-card {
+    display: flex; align-items: center; gap: .75rem;
+    padding: .7rem 1rem; border-radius: 10px;
+    border: 1px solid #eef0f7; color: inherit;
+    text-decoration: none; transition: background .12s;
+  }
+  .pd-company-card:hover { background: #f0f3fc; border-color: #c9d4f5; }
+  .pd-company-avatar {
+    width: 36px; height: 36px; border-radius: 8px;
+    background: var(--brand-light); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .75rem; font-weight: 700; flex-shrink: 0;
   }
   .event-status-dot {
     width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex-shrink: 0;
@@ -93,6 +123,27 @@
   @media (max-width: 576px) {
     .col-contact, .col-wf { display: none; }
   }
+
+  .typeahead-wrap { position: relative; }
+  .typeahead-list {
+    position: absolute; top: 100%; left: 0; right: 0; z-index: 1055;
+    background: #fff; border: 1px solid #dee2e6; border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.12); max-height: 200px;
+    overflow-y: auto; display: none;
+  }
+  .typeahead-list.show { display: block; }
+  .typeahead-item {
+    padding: .5rem .9rem; cursor: pointer; font-size: .87rem;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .typeahead-item:last-child { border-bottom: none; }
+  .typeahead-item:hover, .typeahead-item.active { background: #eef1fc; }
+  .selected-badge {
+    display: inline-block; background: #eef1fc; color: var(--brand);
+    border: 1px solid #c9d4f5; padding: .35em .75em;
+    border-radius: 20px; font-size: .82rem; font-weight: 500;
+  }
+  .selected-badge .btn-close { font-size: .5rem; margin-left: .5rem; }
 </style>
 {% endblock %}
 
@@ -173,14 +224,14 @@
             data-client-id="{{ client_id }}"
             data-title="{{ p.title }}"
             data-wf="{{ p.is_watson_forsberg|yesno:'true,false' }}"
-            data-notes="{{ p.notes|escapejs }}"
+            data-notes="{{ p.notes }}"
             data-pending-invite="{{ p.has_pending_invite|yesno:'true,false' }}"
             data-search="{{ p.name|lower }} {{ p.email|lower }} {{ company_str|lower }} {{ p.title|lower }}"
             onclick="openPersonDetail(this)">
           <td>
             <div class="d-flex align-items-center gap-2">
               <div class="avatar">{{ p.first_name|slice:":1" }}{{ p.last_name|slice:":1" }}</div>
-              <div>
+              <div class="person-name-cell">
                 <span class="fw-semibold">{{ p.name }}</span>
                 {% if p.has_pending_invite %}
                 <span class="ms-2 badge rounded-pill" style="background:#e8a020;color:#fff;font-size:.65rem;vertical-align:middle">
@@ -243,9 +294,18 @@
           </div>
           <div class="col-12">
             <label class="form-label small fw-semibold">Company (Client)</label>
-            <select id="apClient" class="form-select">
-              <option value="">— None —</option>
-            </select>
+            <input type="hidden" id="apClientId" />
+            <div class="typeahead-wrap">
+              <input id="apClientInput" type="text" class="form-control"
+                     placeholder="Search companies…" autocomplete="off" />
+              <div class="typeahead-list" id="apClientDropdown"></div>
+            </div>
+            <div id="apClientSelected" class="mt-2 d-none">
+              <span class="selected-badge">
+                <span id="apClientName"></span>
+                <button type="button" class="btn-close" onclick="clearClient('ap')"></button>
+              </span>
+            </div>
             <div id="apNewClientRow" class="mt-1 d-none">
               <div class="input-group input-group-sm">
                 <input id="apNewClientName" type="text" class="form-control" placeholder="New client name" />
@@ -289,31 +349,43 @@
 <div class="modal fade" id="personDetailModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered">
     <div class="modal-content">
-      <div class="modal-header">
-        <div class="flex-grow-1 me-2">
-          <h5 class="modal-title fw-bold mb-1" id="pdName"></h5>
-          <div id="pdSubtitle" class="d-flex flex-wrap gap-2"></div>
+      <div class="modal-header border-0" style="background:var(--brand);color:#fff;padding:1.4rem 1.5rem 1.2rem">
+        <div class="d-flex align-items-center gap-3 flex-grow-1 me-3">
+          <div id="pdAvatar" class="pd-avatar-lg">?</div>
+          <div>
+            <h4 class="modal-title fw-bold mb-1 lh-sm" id="pdName"></h4>
+            <div id="pdSubtitle" class="d-flex flex-wrap gap-2"></div>
+          </div>
         </div>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter:invert(1)"></button>
       </div>
-      <div class="modal-body">
+      <div class="modal-body p-0">
 
-        <!-- Contact info -->
-        <div class="mb-4">
-          <p class="pd-section-label"><i class="bi bi-person-lines-fill me-1"></i>Contact</p>
-          <div id="pdContact" class="d-flex flex-wrap gap-3" style="font-size:.9rem"></div>
+        <!-- Contact chips -->
+        <div class="px-4 py-3 border-bottom" style="background:#fafbfe">
+          <div id="pdContact" class="d-flex flex-wrap gap-2"></div>
+        </div>
+
+        <!-- Company cards -->
+        <div id="pdCompanySection" class="px-4 py-3 border-bottom d-none">
+          <p class="pd-section-label mt-1"><i class="bi bi-building me-1"></i>Company</p>
+          <div id="pdCompanyCards" class="d-flex flex-column gap-2"></div>
         </div>
 
         <!-- Internal Notes -->
-        <div id="pdNotesSection" class="mb-4 d-none">
-          <p class="pd-section-label"><i class="bi bi-sticky-fill me-1"></i>Internal Notes</p>
-          <div id="pdNotes" class="rounded-3 p-3"
-               style="background:#f8f9fc;font-size:.88rem;color:#555;line-height:1.6;white-space:pre-line"></div>
+        <div id="pdNotesSection" class="px-4 py-3 border-bottom d-none">
+          <p class="pd-section-label mt-1"><i class="bi bi-sticky-fill me-1"></i>Notes</p>
+          <div id="pdNotes" class="rounded-3 p-3" style="background:#f8f9fc;font-size:.88rem;color:#555;line-height:1.6;white-space:pre-line"></div>
+        </div>
+
+        <!-- Loading -->
+        <div id="pdLoading" class="text-center py-5 text-muted">
+          <div class="spinner-border spinner-border-sm me-2"></div>Loading…
         </div>
 
         <!-- Upcoming events -->
-        <div id="pdUpcomingSection" class="mb-4 d-none">
-          <p class="pd-section-label"><i class="bi bi-calendar-event me-1"></i>Upcoming Events</p>
+        <div id="pdUpcomingSection" class="px-4 py-3 border-bottom d-none">
+          <p class="pd-section-label mt-1"><i class="bi bi-calendar-event me-1"></i>Upcoming Events</p>
           <div class="table-responsive">
             <table class="table table-sm table-hover mb-0" style="font-size:.85rem">
               <thead class="table-light">
@@ -330,8 +402,8 @@
         </div>
 
         <!-- Past events -->
-        <div id="pdPastSection" class="d-none">
-          <p class="pd-section-label"><i class="bi bi-clock-history me-1"></i>Past Events</p>
+        <div id="pdPastSection" class="px-4 py-3 d-none">
+          <p class="pd-section-label mt-1"><i class="bi bi-clock-history me-1"></i>Past Events</p>
           <div class="table-responsive">
             <table class="table table-sm table-hover mb-0" style="font-size:.85rem">
               <thead class="table-light">
@@ -346,15 +418,10 @@
           </div>
         </div>
 
-        <div id="pdNoEvents" class="text-muted small text-center py-3 d-none">
-          No event history for this person.
-        </div>
-        <div id="pdLoading" class="text-center py-4 text-muted">
-          <div class="spinner-border spinner-border-sm me-2"></div>Loading…
-        </div>
+        <div id="pdNoEvents" class="text-muted small text-center py-3 d-none">No event history for this person.</div>
 
       </div>
-      <div class="modal-footer">
+      <div class="modal-footer border-0" style="background:#f8f9fc">
         <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
         <button class="btn btn-sm btn-outline-primary" id="pdEditBtn">
           <i class="bi bi-pencil me-1"></i>Edit
@@ -393,9 +460,18 @@
           </div>
           <div class="col-12">
             <label class="form-label small fw-semibold">Company (Client)</label>
-            <select id="epClient" class="form-select">
-              <option value="">— None —</option>
-            </select>
+            <input type="hidden" id="epClientId" />
+            <div class="typeahead-wrap">
+              <input id="epClientInput" type="text" class="form-control"
+                     placeholder="Search companies…" autocomplete="off" />
+              <div class="typeahead-list" id="epClientDropdown"></div>
+            </div>
+            <div id="epClientSelected" class="mt-2 d-none">
+              <span class="selected-badge">
+                <span id="epClientName"></span>
+                <button type="button" class="btn-close" onclick="clearClient('ep')"></button>
+              </span>
+            </div>
             <div id="epNewClientRow" class="mt-1 d-none">
               <div class="input-group input-group-sm">
                 <input id="epNewClientName" type="text" class="form-control" placeholder="New client name" />
@@ -506,22 +582,58 @@
   document.getElementById('sortSelect').addEventListener('change', applyFilters);
   applyFilters();
 
-  // ── Load clients into a <select> ──
-  async function loadClientSelect(selectId, selectedId) {
-    const sel = document.getElementById(selectId);
-    sel.innerHTML = '<option value="">— None —</option>';
-    try {
-      const res = await fetch('/clients/');
-      const clients = await res.json();
-      clients.forEach(c => {
-        const opt = document.createElement('option');
-        opt.value = c.id;
-        opt.textContent = c.name;
-        sel.appendChild(opt);
-      });
-    } catch { }
-    sel.value = selectedId || '';
+  // ── Client typeahead ──
+  function selectClient(prefix, id, name) {
+    document.getElementById(prefix + 'ClientId').value    = id;
+    document.getElementById(prefix + 'ClientInput').value = '';
+    document.getElementById(prefix + 'ClientName').textContent = name;
+    document.getElementById(prefix + 'ClientSelected').classList.remove('d-none');
+    document.getElementById(prefix + 'ClientInput').classList.add('d-none');
+    document.getElementById(prefix + 'ClientDropdown').classList.remove('show');
   }
+
+  function clearClient(prefix) {
+    document.getElementById(prefix + 'ClientId').value    = '';
+    document.getElementById(prefix + 'ClientInput').value = '';
+    document.getElementById(prefix + 'ClientSelected').classList.add('d-none');
+    document.getElementById(prefix + 'ClientInput').classList.remove('d-none');
+    document.getElementById(prefix + 'ClientDropdown').classList.remove('show');
+  }
+
+  let _clientTimer = null;
+
+  function setupClientTypeahead(prefix) {
+    const input = document.getElementById(prefix + 'ClientInput');
+    const dd    = document.getElementById(prefix + 'ClientDropdown');
+    if (!input) return; // guard against missing elements
+
+    input.addEventListener('input', () => {
+      const q = input.value.trim();
+      clearTimeout(_clientTimer);
+      if (!q) { dd.classList.remove('show'); return; }
+      _clientTimer = setTimeout(async () => {
+        try {
+          const res = await fetch(`/clients/?q=${encodeURIComponent(q)}`);
+          const clients = await res.json();
+          dd.innerHTML = clients.map(c => `
+            <div class="typeahead-item" data-id="${c.id}" data-name="${c.name.replace(/"/g,'&quot;')}">
+              ${c.name}
+            </div>`).join('') || '<div class="typeahead-item text-muted">No results</div>';
+          dd.querySelectorAll('.typeahead-item[data-id]').forEach(item => {
+            item.addEventListener('click', () => selectClient(prefix, item.dataset.id, item.dataset.name));
+          });
+          dd.classList.add('show');
+        } catch { }
+      }, 200);
+    });
+
+    document.addEventListener('click', e => {
+      if (!e.target.closest('.typeahead-wrap')) dd.classList.remove('show');
+    });
+  }
+
+  setupClientTypeahead('ap');
+  setupClientTypeahead('ep');
 
   // ── Build a table row from a person object ──
   function buildRow(p) {
@@ -546,15 +658,21 @@
     tr.dataset.company  = p.company;
     tr.dataset.clientId = p.client_id || '';
     tr.dataset.title    = p.title;
-    tr.dataset.wf       = p.is_watson_forsberg ? 'true' : 'false';
-    tr.dataset.notes    = p.notes || '';
-    tr.dataset.search   = searchStr;
+    tr.dataset.wf          = p.is_watson_forsberg ? 'true' : 'false';
+    tr.dataset.notes       = p.notes || '';
+    tr.dataset.pendingInvite = p.has_pending_invite ? 'true' : 'false';
+    tr.dataset.search      = searchStr;
     tr.setAttribute('onclick', 'openPersonDetail(this)');
+    const pendingBadge = p.has_pending_invite
+      ? `<span class="ms-2 badge rounded-pill" style="background:#e8a020;color:#fff;font-size:.65rem;vertical-align:middle"><i class="bi bi-clock me-1"></i>Invite pending</span>`
+      : '';
     tr.innerHTML = `
       <td>
         <div class="d-flex align-items-center gap-2">
           <div class="avatar">${initials.toUpperCase()}</div>
-          <span class="fw-semibold">${p.name}</span>
+          <div class="person-name-cell">
+            <span class="fw-semibold">${p.name}</span>${pendingBadge}
+          </div>
         </div>
       </td>
       <td class="col-contact">${emailLink}${phoneSpan}</td>
@@ -576,7 +694,7 @@
     document.getElementById('apError').classList.add('d-none');
     document.getElementById('apNewClientRow').classList.add('d-none');
     document.getElementById('apNewClientBtn').classList.remove('d-none');
-    await loadClientSelect('apClient', '');
+    clearClient('ap');
     addModal.show();
   }
 
@@ -594,7 +712,7 @@
       first_name: first, last_name: last,
       email: document.getElementById('apEmail').value.trim(),
       phone_number: document.getElementById('apPhone').value.trim(),
-      client_id: document.getElementById('apClient').value || null,
+      client_id: document.getElementById('apClientId').value || null,
       title: document.getElementById('apTitle').value.trim(),
       is_watson_forsberg: document.getElementById('apWF').checked,
       notes: document.getElementById('apNotes').value,
@@ -630,7 +748,11 @@
     document.getElementById('epError').classList.add('d-none');
     document.getElementById('epNewClientRow').classList.add('d-none');
     document.getElementById('epNewClientBtn').classList.remove('d-none');
-    await loadClientSelect('epClient', row.dataset.clientId || '');
+    if (row.dataset.clientId && row.dataset.company) {
+      selectClient('ep', row.dataset.clientId, row.dataset.company);
+    } else {
+      clearClient('ep');
+    }
     editModal.show();
   }
 
@@ -649,7 +771,7 @@
       first_name: first, last_name: last,
       email: document.getElementById('epEmail').value.trim(),
       phone_number: document.getElementById('epPhone').value.trim(),
-      client_id: document.getElementById('epClient').value || null,
+      client_id: document.getElementById('epClientId').value || null,
       title: document.getElementById('epTitle').value.trim(),
       is_watson_forsberg: document.getElementById('epWF').checked,
       notes: document.getElementById('epNotes').value,
@@ -771,6 +893,20 @@
         document.getElementById('pdUpcomingBody').innerHTML =
           pdEventRows(p.upcoming_events, ['invited','able_to_come','registered'], true);
       }
+      // Sync pending badge on the directory row without waiting for page reload
+      const hasPending = p.upcoming_events.some(ev => !ev.invited);
+      const dirRow = document.querySelector(`.person-row[data-id="${_pdCurrentId}"]`);
+      if (dirRow) {
+        dirRow.dataset.pendingInvite = hasPending ? 'true' : 'false';
+        const nameCell = dirRow.querySelector('.person-name-cell');
+        const existingBadge = nameCell?.querySelector('.badge');
+        if (hasPending && !existingBadge) {
+          nameCell.insertAdjacentHTML('beforeend',
+            `<span class="ms-2 badge rounded-pill" style="background:#e8a020;color:#fff;font-size:.65rem;vertical-align:middle"><i class="bi bi-clock me-1"></i>Invite pending</span>`);
+        } else if (!hasPending && existingBadge) {
+          existingBadge.remove();
+        }
+      }
     } catch { /* leave table as-is on error */ }
   }
 
@@ -778,22 +914,51 @@
     const d = row.dataset;
     _pdCurrentId = d.id;
 
-    // Header
+    // Avatar
+    const initials = ((d.first || '')[0] || '') + ((d.last || '')[0] || '');
+    document.getElementById('pdAvatar').textContent = initials.toUpperCase() || '?';
+
+    // Header name
     document.getElementById('pdName').textContent = `${d.first} ${d.last}`.trim();
-    const badges = [];
-    if (d.wf === 'true') badges.push('<span class="badge rounded-pill" style="background:var(--accent);font-size:.7rem">WF Staff</span>');
-    if (d.company) badges.push(`<span class="badge rounded-pill bg-secondary-subtle text-secondary border" style="font-size:.7rem">${d.company}</span>`);
-    document.getElementById('pdSubtitle').innerHTML = badges.join('');
 
-    // Contact
-    const contacts = [];
-    if (d.email) contacts.push(`<a href="mailto:${d.email}" class="text-decoration-none"><i class="bi bi-envelope me-1 text-muted"></i>${d.email}</a>`);
-    if (d.phone) contacts.push(`<span><i class="bi bi-telephone me-1 text-muted"></i>${d.phone}</span>`);
-    if (d.title) contacts.push(`<span class="text-muted"><i class="bi bi-briefcase me-1"></i>${d.title}</span>`);
-    document.getElementById('pdContact').innerHTML = contacts.length
-      ? contacts.join('') : '<span class="text-muted small">No contact info on record.</span>';
+    // Subtitle badges (fast path: WF + title)
+    const fastBadges = [];
+    if (d.wf === 'true') fastBadges.push('<span class="badge rounded-pill" style="background:rgba(255,255,255,.25);color:#fff;font-size:.7rem">WF Staff</span>');
+    if (d.title) fastBadges.push(`<span class="badge rounded-pill" style="background:rgba(255,255,255,.18);color:#fff;font-size:.7rem">${d.title}</span>`);
+    document.getElementById('pdSubtitle').innerHTML = fastBadges.join('');
 
-    // Notes (from dataset — fast path before fetch)
+    // Contact chip builder (reused for fast + fresh paths)
+    function buildContactChips(email, phone, cell, title) {
+      const chips = [];
+      if (email) chips.push(`<a href="mailto:${email}" class="contact-chip"><i class="bi bi-envelope"></i>${email}</a>`);
+      if (phone) chips.push(`<span class="contact-chip"><i class="bi bi-telephone"></i>${phone}</span>`);
+      if (cell) chips.push(`<span class="contact-chip"><i class="bi bi-phone"></i>${cell}</span>`);
+      if (title) chips.push(`<span class="contact-chip"><i class="bi bi-briefcase"></i>${title}</span>`);
+      return chips.length ? chips.join('') : '<span class="text-muted small">No contact info on record.</span>';
+    }
+
+    document.getElementById('pdContact').innerHTML = buildContactChips(d.email, d.phone, '', d.title);
+
+    // Company section fast path
+    const companySection = document.getElementById('pdCompanySection');
+    const companyCards = document.getElementById('pdCompanyCards');
+    if (d.company) {
+      companySection.classList.remove('d-none');
+      const clientId = d.clientId;
+      companyCards.innerHTML = clientId
+        ? `<a href="/clients/directory/?open=${clientId}" class="pd-company-card text-decoration-none">
+             <div class="pd-company-avatar">${(d.company[0] || '').toUpperCase()}</div>
+             <div class="fw-semibold text-dark">${d.company}</div>
+           </a>`
+        : `<div class="pd-company-card">
+             <div class="pd-company-avatar">${(d.company[0] || '').toUpperCase()}</div>
+             <div class="fw-semibold text-dark">${d.company}</div>
+           </div>`;
+    } else {
+      companySection.classList.add('d-none');
+    }
+
+    // Notes fast path
     const notesSection = document.getElementById('pdNotesSection');
     if (d.notes) {
       notesSection.classList.remove('d-none');
@@ -815,13 +980,35 @@
 
     personDetailModal.show();
 
-    // Fetch full detail (events + fresh notes)
+    // Fetch full detail
     try {
       const res = await fetch(`/people/${d.id}/detail/`);
       const p = await res.json();
       document.getElementById('pdLoading').classList.add('d-none');
 
-      // Refresh notes from server response
+      // Refresh subtitle
+      const freshBadges = [];
+      if (p.is_watson_forsberg) freshBadges.push('<span class="badge rounded-pill" style="background:rgba(255,255,255,.25);color:#fff;font-size:.7rem">WF Staff</span>');
+      if (p.title) freshBadges.push(`<span class="badge rounded-pill" style="background:rgba(255,255,255,.18);color:#fff;font-size:.7rem">${p.title}</span>`);
+      document.getElementById('pdSubtitle').innerHTML = freshBadges.join('');
+
+      // Refresh contact chips with cell
+      document.getElementById('pdContact').innerHTML = buildContactChips(p.email, p.phone_number, p.cell_phone_number, p.title);
+
+      // Company cards with real IDs from API
+      if (p.companies && p.companies.length) {
+        companySection.classList.remove('d-none');
+        companyCards.innerHTML = p.companies.map(c =>
+          `<a href="/clients/directory/?open=${c.id}" class="pd-company-card text-decoration-none">
+             <div class="pd-company-avatar">${(c.name[0] || '').toUpperCase()}</div>
+             <div class="fw-semibold text-dark">${c.name}</div>
+           </a>`
+        ).join('');
+      } else {
+        companySection.classList.add('d-none');
+      }
+
+      // Refresh notes
       if (p.notes) {
         notesSection.classList.remove('d-none');
         document.getElementById('pdNotes').textContent = p.notes;
@@ -846,8 +1033,19 @@
       }
     } catch {
       document.getElementById('pdLoading').innerHTML =
-        '<i class="bi bi-exclamation-triangle text-warning me-1"></i>Failed to load event history.';
+        '<i class="bi bi-exclamation-triangle text-warning me-1"></i>Failed to load details.';
     }
   }
+
+  // ── Auto-open person from ?open= URL param ──
+  (function () {
+    const params = new URLSearchParams(window.location.search);
+    const openId = params.get('open');
+    if (openId) {
+      history.replaceState({}, '', window.location.pathname);
+      const row = document.querySelector(`.person-row[data-id="${openId}"]`);
+      if (row) openPersonDetail(row);
+    }
+  })();
 </script>
 {% endblock %}

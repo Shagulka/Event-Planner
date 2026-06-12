@@ -112,6 +112,8 @@ def detail(request, person_id):
         'last_name': person.last_name,
         'email': person.email,
         'phone_number': person.phone_number,
+        'cell_phone_number': person.cell_phone_number,
+        'companies': [{'id': c.id, 'name': c.name} for c in person.company.all()],
         'company': _company_str(person),
         'title': person.title,
         'is_watson_forsberg': person.is_watson_forsberg,
@@ -149,10 +151,15 @@ def create(request):
     if client_id:
         person.company.set([client_id])
 
+    if any(c.name == 'Watson-Forsberg' for c in person.company.all()):
+        person.is_watson_forsberg = True
+        person.save(update_fields=['is_watson_forsberg'])
+
     return JsonResponse({
         'id': person.id, 'name': person.name,
         'first_name': person.first_name, 'last_name': person.last_name,
         'email': person.email, 'phone_number': person.phone_number,
+        'companies': [{'id': c.id, 'name': c.name} for c in person.company.all()],
         'company': _company_str(person), 'title': person.title,
         'is_watson_forsberg': person.is_watson_forsberg,
         'notes': person.notes,
@@ -190,14 +197,28 @@ def update(request, person_id):
     else:
         person.company.clear()
 
+    if any(c.name == 'Watson-Forsberg' for c in person.company.all()):
+        person.is_watson_forsberg = True
+        person.save(update_fields=['is_watson_forsberg'])
+
+    from events.models import EventGuest
+    today = datetime.date.today()
+    has_pending_invite = EventGuest.objects.filter(
+        person=person,
+        invited=False,
+        event__date__gte=today,
+    ).exists()
+
     return JsonResponse({
         'id': person.id, 'name': person.name,
         'first_name': person.first_name, 'last_name': person.last_name,
         'email': person.email, 'phone_number': person.phone_number,
+        'companies': [{'id': c.id, 'name': c.name} for c in person.company.all()],
         'company': _company_str(person), 'title': person.title,
         'is_watson_forsberg': person.is_watson_forsberg,
         'notes': person.notes,
         'client_id': str(client_id) if client_id else '',
+        'has_pending_invite': has_pending_invite,
     })
 
 

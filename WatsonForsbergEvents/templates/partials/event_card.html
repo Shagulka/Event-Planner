@@ -1,4 +1,4 @@
-<div class="col-12 col-md-6 col-xl-4 event-item">
+<div class="col-12 col-md-6 col-xl-4 event-item" data-event-type="{{ event.event_type }}">
   <div class="card event-card{% if not upcoming %} past{% endif %} h-100"
        style="cursor: pointer" onclick="openEventDetail(this)">
 
@@ -8,6 +8,9 @@
           <i class="bi bi-calendar3 me-1"></i>{{ event.date|date:"N j, Y" }}{% if event.time %}&nbsp;<i class="bi bi-clock me-1"></i>{{ event.time|time:"g:i A" }}{% endif %}
         </p>
         <h5 class="card-title">{{ event.name }}</h5>
+        {% if event.event_type %}
+        <span class="badge rounded-pill mt-1" style="background:rgba(255,255,255,.22);color:#fff;font-size:.65rem">{{ event.get_event_type_display }}</span>
+        {% endif %}
         {% if upcoming and event.uninvited_count %}
         <span class="badge rounded-pill mt-1" style="background:#e8a020;color:#fff;font-size:.65rem">
           <i class="bi bi-clock me-1"></i>{{ event.uninvited_count }} not invited
@@ -38,16 +41,17 @@
       {% endif %}
 
       <div class="d-flex flex-wrap align-items-center gap-2 mt-auto">
-        {% if event.proposed_amount %}
+        {% with ta=event.total_budget_actual tp=event.total_budget_proposed %}
+        {% if ta %}
         <span class="badge budget-pill bg-light text-dark border">
-          <i class="bi bi-currency-dollar"></i> Proposed: ${{ event.proposed_amount }}
+          <i class="bi bi-check-circle-fill text-success"></i> Actual: ${{ ta|floatformat:"0" }}
+        </span>
+        {% elif tp %}
+        <span class="badge budget-pill bg-light text-dark border">
+          <i class="bi bi-currency-dollar"></i> Budget: ${{ tp|floatformat:"0" }}
         </span>
         {% endif %}
-        {% if event.approved_amount %}
-        <span class="badge budget-pill bg-light text-dark border">
-          <i class="bi bi-check-circle-fill"></i> {% if upcoming %}Approved{% else %}Budget{% endif %}: ${{ event.approved_amount }}
-        </span>
-        {% endif %}
+        {% endwith %}
         <button class="btn btn-sm btn-outline btn-guests ms-auto"
                 onclick="event.stopPropagation(); openGuests({{ event.id }}, '{{ event.name|escapejs }}')">
           <i class="bi bi-people-fill me-1"></i>Guests
@@ -70,7 +74,16 @@
                 data-created-by="{{ event.created_by.username|default:'' }}"
                 data-created-at="{{ event.created_at|date:'Y-m-d' }}"
                 data-updated-by="{{ event.updated_by.username|default:'' }}"
-                data-updated-at="{{ event.updated_at|date:'Y-m-d' }}">
+                data-updated-at="{{ event.updated_at|date:'Y-m-d' }}"
+                data-event-type="{{ event.event_type }}"
+                data-bud-mat-p="{{ event.budget_materials_proposed|default:'' }}"
+                data-bud-mat-a="{{ event.budget_materials_actual|default:'' }}"
+                data-bud-ven-p="{{ event.budget_venue_proposed|default:'' }}"
+                data-bud-ven-a="{{ event.budget_venue_actual|default:'' }}"
+                data-bud-tic-p="{{ event.budget_tickets_proposed|default:'' }}"
+                data-bud-tic-a="{{ event.budget_tickets_actual|default:'' }}"
+                data-bud-mis-p="{{ event.budget_misc_proposed|default:'' }}"
+                data-bud-mis-a="{{ event.budget_misc_actual|default:'' }}">
           <i class="bi bi-pencil me-1"></i>Edit
         </button>
       </div>

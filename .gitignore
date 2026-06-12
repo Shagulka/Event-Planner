@@ -46,3 +46,4 @@ Thumbs.db
 .env
 *.env
 secrets.py
+WatsonForsbergEvents/WFcontacts.csv
