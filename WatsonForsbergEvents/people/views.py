@@ -145,6 +145,7 @@ def create(request):
         name=name,
         email=data.get('email', ''),
         phone_number=data.get('phone_number', ''),
+        cell_phone_number=data.get('cell_phone_number', ''),
         title=data.get('title', ''),
         is_watson_forsberg=data.get('is_watson_forsberg', False),
         notes=data.get('notes', ''),
@@ -161,6 +162,7 @@ def create(request):
         'id': person.id, 'name': person.name,
         'first_name': person.first_name, 'last_name': person.last_name,
         'email': person.email, 'phone_number': person.phone_number,
+        'cell_phone_number': person.cell_phone_number,
         'companies': [{'id': c.id, 'name': c.name} for c in person.company.all()],
         'company': _company_str(person), 'title': person.title,
         'is_watson_forsberg': person.is_watson_forsberg,
@@ -188,6 +190,7 @@ def update(request, person_id):
     person.name = f"{first_name} {last_name}".strip()
     person.email = data.get('email', '').strip()
     person.phone_number = data.get('phone_number', '').strip()
+    person.cell_phone_number = data.get('cell_phone_number', '').strip()
     person.title = data.get('title', '').strip()
     person.is_watson_forsberg = data.get('is_watson_forsberg', False)
     person.notes = data.get('notes', '')
@@ -215,6 +218,7 @@ def update(request, person_id):
         'id': person.id, 'name': person.name,
         'first_name': person.first_name, 'last_name': person.last_name,
         'email': person.email, 'phone_number': person.phone_number,
+        'cell_phone_number': person.cell_phone_number,
         'companies': [{'id': c.id, 'name': c.name} for c in person.company.all()],
         'company': _company_str(person), 'title': person.title,
         'is_watson_forsberg': person.is_watson_forsberg,

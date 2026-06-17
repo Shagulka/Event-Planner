@@ -220,6 +220,7 @@
             data-last="{{ p.last_name }}"
             data-email="{{ p.email }}"
             data-phone="{{ p.phone_number }}"
+            data-cell="{{ p.cell_phone_number }}"
             data-company="{{ company_str }}"
             data-client-id="{{ client_id }}"
             data-title="{{ p.title }}"
@@ -242,8 +243,9 @@
             </div>
           </td>
           <td class="col-contact">
-            {% if p.email %}<a href="mailto:{{ p.email }}" class="d-block text-decoration-none text-muted small"><i class="bi bi-envelope me-1"></i>{{ p.email }}</a>{% endif %}
-            {% if p.phone_number %}<span class="d-block text-muted small"><i class="bi bi-telephone me-1"></i>{{ p.phone_number }}</span>{% endif %}
+            {% if p.email %}<a href="mailto:{{ p.email }}" class="d-block text-decoration-none small" style="color:#0d6efd"><i class="bi bi-envelope me-1"></i>{{ p.email }}</a>{% endif %}
+            {% if p.phone_number %}<a href="tel:{{ p.phone_number }}" class="d-block text-decoration-none small" style="color:#0d6efd"><i class="bi bi-telephone me-1"></i>{{ p.phone_number }}</a>{% endif %}
+            {% if p.cell_phone_number %}<a href="tel:{{ p.cell_phone_number }}" class="d-block text-decoration-none small" style="color:#0d6efd"><i class="bi bi-phone me-1"></i>{{ p.cell_phone_number }}</a>{% endif %}
           </td>
           <td>
             {% if company_str %}<span class="fw-semibold small">{{ company_str }}</span>{% endif %}
@@ -288,9 +290,13 @@
             <label class="form-label small fw-semibold">Email</label>
             <input id="apEmail" type="email" class="form-control" />
           </div>
-          <div class="col-12">
+          <div class="col-md-6">
             <label class="form-label small fw-semibold">Phone</label>
             <input id="apPhone" type="text" class="form-control" />
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Cell</label>
+            <input id="apCell" type="text" class="form-control" />
           </div>
           <div class="col-12">
             <label class="form-label small fw-semibold">Company (Client)</label>
@@ -455,9 +461,13 @@
             <label class="form-label small fw-semibold">Email</label>
             <input id="epEmail" type="email" class="form-control" />
           </div>
-          <div class="col-12">
+          <div class="col-md-6">
             <label class="form-label small fw-semibold">Phone</label>
             <input id="epPhone" type="text" class="form-control" />
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Cell</label>
+            <input id="epCell" type="text" class="form-control" />
           </div>
           <div class="col-12">
             <label class="form-label small fw-semibold">Company (Client)</label>
@@ -642,9 +652,11 @@
     const wfBadge = p.is_watson_forsberg
       ? '<span class="wf-badge"><i class="bi bi-building me-1"></i>WF</span>' : '';
     const emailLink = p.email
-      ? `<a href="mailto:${p.email}" class="d-block text-decoration-none text-muted small"><i class="bi bi-envelope me-1"></i>${p.email}</a>` : '';
+      ? `<a href="mailto:${p.email}" class="d-block text-decoration-none small" style="color:#0d6efd"><i class="bi bi-envelope me-1"></i>${p.email}</a>` : '';
     const phoneSpan = p.phone_number
-      ? `<span class="d-block text-muted small"><i class="bi bi-telephone me-1"></i>${p.phone_number}</span>` : '';
+      ? `<a href="tel:${p.phone_number}" class="d-block text-decoration-none small" style="color:#0d6efd"><i class="bi bi-telephone me-1"></i>${p.phone_number}</a>` : '';
+    const cellSpan = p.cell_phone_number
+      ? `<a href="tel:${p.cell_phone_number}" class="d-block text-decoration-none small" style="color:#0d6efd"><i class="bi bi-phone me-1"></i>${p.cell_phone_number}</a>` : '';
     const company = p.company ? `<span class="fw-semibold small">${p.company}</span>` : '';
     const title   = p.title   ? `<br><span class="text-muted small">${p.title}</span>` : '';
     const searchStr = `${p.name} ${p.email} ${p.company} ${p.title}`.toLowerCase();
@@ -656,6 +668,7 @@
     tr.dataset.last     = p.last_name;
     tr.dataset.email    = p.email;
     tr.dataset.phone    = p.phone_number;
+    tr.dataset.cell     = p.cell_phone_number || '';
     tr.dataset.company  = p.company;
     tr.dataset.clientId = p.client_id || '';
     tr.dataset.title    = p.title;
@@ -676,7 +689,7 @@
           </div>
         </div>
       </td>
-      <td class="col-contact">${emailLink}${phoneSpan}</td>
+      <td class="col-contact">${emailLink}${phoneSpan}${cellSpan}</td>
       <td>${company}${title}</td>
       <td class="col-wf text-center">${wfBadge}</td>
       <td>
@@ -690,7 +703,7 @@
   const addModal = new bootstrap.Modal(document.getElementById('addPersonModal'));
 
   async function openAddPerson() {
-    ['apFirst','apLast','apEmail','apPhone','apTitle','apNotes'].forEach(id => document.getElementById(id).value = '');
+    ['apFirst','apLast','apEmail','apPhone','apCell','apTitle','apNotes'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('apWF').checked = false;
     document.getElementById('apError').classList.add('d-none');
     document.getElementById('apNewClientRow').classList.add('d-none');
@@ -713,6 +726,7 @@
       first_name: first, last_name: last,
       email: document.getElementById('apEmail').value.trim(),
       phone_number: document.getElementById('apPhone').value.trim(),
+      cell_phone_number: document.getElementById('apCell').value.trim(),
       client_id: document.getElementById('apClientId').value || null,
       title: document.getElementById('apTitle').value.trim(),
       is_watson_forsberg: document.getElementById('apWF').checked,
@@ -743,6 +757,7 @@
     document.getElementById('epLast').value  = row.dataset.last;
     document.getElementById('epEmail').value = row.dataset.email;
     document.getElementById('epPhone').value = row.dataset.phone;
+    document.getElementById('epCell').value  = row.dataset.cell || '';
     document.getElementById('epTitle').value = row.dataset.title;
     document.getElementById('epWF').checked  = row.dataset.wf === 'true';
     document.getElementById('epNotes').value = row.dataset.notes || '';
@@ -772,6 +787,7 @@
       first_name: first, last_name: last,
       email: document.getElementById('epEmail').value.trim(),
       phone_number: document.getElementById('epPhone').value.trim(),
+      cell_phone_number: document.getElementById('epCell').value.trim(),
       client_id: document.getElementById('epClientId').value || null,
       title: document.getElementById('epTitle').value.trim(),
       is_watson_forsberg: document.getElementById('epWF').checked,
@@ -936,14 +952,14 @@
     // Contact chip builder (reused for fast + fresh paths)
     function buildContactChips(email, phone, cell, title) {
       const chips = [];
-      if (email) chips.push(`<a href="mailto:${email}" class="contact-chip"><i class="bi bi-envelope"></i>${email}</a>`);
-      if (phone) chips.push(`<span class="contact-chip"><i class="bi bi-telephone"></i>${phone}</span>`);
-      if (cell) chips.push(`<span class="contact-chip"><i class="bi bi-phone"></i>${cell}</span>`);
+      if (email) chips.push(`<a href="mailto:${email}" class="contact-chip" style="color:#0d6efd"><i class="bi bi-envelope"></i>${email}</a>`);
+      if (phone) chips.push(`<a href="tel:${phone}" class="contact-chip" style="color:#0d6efd"><i class="bi bi-telephone"></i>${phone}</a>`);
+      if (cell) chips.push(`<a href="tel:${cell}" class="contact-chip" style="color:#0d6efd"><i class="bi bi-phone"></i>${cell}</a>`);
       if (title) chips.push(`<span class="contact-chip"><i class="bi bi-briefcase"></i>${title}</span>`);
       return chips.length ? chips.join('') : '<span class="text-muted small">No contact info on record.</span>';
     }
 
-    document.getElementById('pdContact').innerHTML = buildContactChips(d.email, d.phone, '', d.title);
+    document.getElementById('pdContact').innerHTML = buildContactChips(d.email, d.phone, d.cell || '', d.title);
 
     // Company section fast path
     const companySection = document.getElementById('pdCompanySection');
