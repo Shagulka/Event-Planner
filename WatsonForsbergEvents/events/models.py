@@ -1,4 +1,16 @@
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import models
+
+BUDGET_CATEGORIES = [
+    ('materials', 'Materials'),
+    ('venue', 'Venue'),
+    ('swag', 'Swag'),
+    ('tickets', 'Tickets'),
+    ('donations', 'Donations'),
+    ('travel', 'Travel'),
+    ('misc', 'Misc'),
+]
+
 
 class EventGuest(models.Model):
     event = models.ForeignKey('Event', on_delete=models.CASCADE, related_name='event_guests')
@@ -7,13 +19,48 @@ class EventGuest(models.Model):
     invited_date = models.DateField(null=True, blank=True)
     able_to_come = models.BooleanField(default=False)
     registered = models.BooleanField(default=False)
-    attended   = models.BooleanField(default=False)
+    attended = models.BooleanField(default=False)
 
     class Meta:
         unique_together = ('event', 'person')
 
     def __str__(self):
         return f"{self.person} — {self.event}"
+
+
+class EventBudget(models.Model):
+    event = models.OneToOneField('Event', on_delete=models.CASCADE, related_name='budget')
+
+    @property
+    def total_proposed(self):
+        s = sum(float(li.proposed_amount or 0) for li in self.line_items.all())
+        return s if s else None
+
+    @property
+    def total_actual(self):
+        s = sum(float(li.actual_amount or 0) for li in self.line_items.all())
+        return s if s else None
+
+    def category_totals(self):
+        totals = {}
+        for li in self.line_items.all():
+            if li.category not in totals:
+                totals[li.category] = {'proposed': 0.0, 'actual': 0.0}
+            totals[li.category]['proposed'] += float(li.proposed_amount or 0)
+            totals[li.category]['actual'] += float(li.actual_amount or 0)
+        return totals
+
+
+class BudgetLineItem(models.Model):
+    budget = models.ForeignKey(EventBudget, on_delete=models.CASCADE, related_name='line_items')
+    category = models.CharField(max_length=20, choices=BUDGET_CATEGORIES)
+    name = models.CharField(max_length=200)
+    proposed_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    actual_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+
+    class Meta:
+        ordering = ['category', 'id']
+
 
 class Event(models.Model):
     client = models.ForeignKey('clients.Client', on_delete=models.SET_NULL, null=True, blank=True, related_name='events')
@@ -32,42 +79,34 @@ class Event(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     created_by = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='created_events')
     updated_by = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='updated_events')
+
     class EventType(models.TextChoices):
         CONFERENCE = 'CONFERENCE', 'Conference'
         MEETING    = 'MEETING',    'Meeting'
         PARTY      = 'PARTY',      'Party'
         FUNDRAISER = 'FUNDRAISER', 'Fundraiser'
+        DONATION   = 'DONATION',    'Donation'
         OTHER      = 'OTHER',      'Other'
 
     event_type = models.CharField(max_length=20, choices=EventType.choices, blank=True, default='')
 
-    budget_materials_proposed = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    budget_materials_actual   = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    budget_venue_proposed     = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    budget_venue_actual       = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    budget_tickets_proposed   = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    budget_tickets_actual     = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    budget_misc_proposed      = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    budget_misc_actual        = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-
     @property
     def total_budget_proposed(self):
-        vals = [v for v in [
-            self.budget_materials_proposed, self.budget_venue_proposed,
-            self.budget_tickets_proposed, self.budget_misc_proposed,
-        ] if v is not None]
-        return sum(vals) if vals else None
+        try:
+            return self.budget.total_proposed
+        except ObjectDoesNotExist:
+            return None
 
     @property
     def total_budget_actual(self):
-        vals = [v for v in [
-            self.budget_materials_actual, self.budget_venue_actual,
-            self.budget_tickets_actual, self.budget_misc_actual,
-        ] if v is not None]
-        return sum(vals) if vals else None
+        try:
+            return self.budget.total_actual
+        except ObjectDoesNotExist:
+            return None
 
     def __str__(self):
         return self.name
+
 
 class EventPayment(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='payments')

@@ -6,7 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_GET, require_POST
 from django.conf import settings
 from django.db.models import Count, Q
-from .models import Event, EventGuest
+from .models import Event, EventGuest, EventBudget, BudgetLineItem, BUDGET_CATEGORIES
 from people.models import Person
 
 
@@ -76,7 +76,6 @@ def event_guest_add(request, event_id):
 
     person = get_object_or_404(Person, pk=person_id)
 
-    # Check if guest already exists
     guest_exists = EventGuest.objects.filter(event=event, person=person).exists()
     if guest_exists:
         guest = EventGuest.objects.get(event=event, person=person)
@@ -140,7 +139,7 @@ def event_guest_update(request, event_id, person_id):
     if guest.registered:
         guest.invited = True
         guest.able_to_come = True
-    if  guest.attended:
+    if guest.attended:
         guest.invited = True
         guest.able_to_come = True
         guest.registered = True
@@ -185,18 +184,63 @@ def event_update(request, event_id):
     event.num_tickets = data.get('num_tickets') or None
     event.registrations_due = data.get('registrations_due') or None
     event.event_type = data.get('event_type', '').strip()
-    event.budget_materials_proposed = data.get('budget_materials_proposed') or None
-    event.budget_materials_actual   = data.get('budget_materials_actual')   or None
-    event.budget_venue_proposed     = data.get('budget_venue_proposed')     or None
-    event.budget_venue_actual       = data.get('budget_venue_actual')       or None
-    event.budget_tickets_proposed   = data.get('budget_tickets_proposed')   or None
-    event.budget_tickets_actual     = data.get('budget_tickets_actual')     or None
-    event.budget_misc_proposed      = data.get('budget_misc_proposed')      or None
-    event.budget_misc_actual        = data.get('budget_misc_actual')        or None
 
     event.updated_by = request.user
     event.save()
     return JsonResponse({'id': event.id, 'name': event.name})
+
+
+@login_required
+@require_GET
+def event_budget(request, event_id):
+    event = get_object_or_404(Event, pk=event_id)
+    try:
+        budget = event.budget
+        line_items = [
+            {
+                'id': li.id,
+                'category': li.category,
+                'name': li.name,
+                'proposed_amount': float(li.proposed_amount) if li.proposed_amount is not None else None,
+                'actual_amount': float(li.actual_amount) if li.actual_amount is not None else None,
+            }
+            for li in budget.line_items.all()
+        ]
+    except EventBudget.DoesNotExist:
+        line_items = []
+    return JsonResponse({'line_items': line_items})
+
+
+@login_required
+@require_POST
+def event_budget_save(request, event_id):
+    event = get_object_or_404(Event, pk=event_id)
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    valid_categories = {k for k, _ in BUDGET_CATEGORIES}
+    line_items = data.get('line_items', [])
+
+    budget, _ = EventBudget.objects.get_or_create(event=event)
+    budget.line_items.all().delete()
+
+    for item in line_items:
+        category = item.get('category', '').strip()
+        name = item.get('name', '').strip()
+        if not category or category not in valid_categories or not name:
+            continue
+        BudgetLineItem.objects.create(
+            budget=budget,
+            category=category,
+            name=name,
+            proposed_amount=item.get('proposed_amount') or None,
+            actual_amount=item.get('actual_amount') or None,
+        )
+
+    return JsonResponse({'ok': True})
+
 
 @login_required
 def event_registration(request, event_id):
@@ -228,7 +272,8 @@ def metrics_data(request):
     events = (
         Event.objects
         .filter(date__gte=from_date, date__lte=to_date)
-        .select_related('client')
+        .select_related('client', 'budget')
+        .prefetch_related('budget__line_items')
         .annotate(
             guests_total=Count('event_guests'),
             invited_count=Count('event_guests', filter=Q(event_guests__invited=True)),
@@ -241,11 +286,7 @@ def metrics_data(request):
 
     rows = []
     tot_guests = tot_invited = tot_able = tot_registered = tot_attended = 0
-    tot_mat_p = tot_mat_a = tot_ven_p = tot_ven_a = 0
-    tot_tic_p = tot_tic_a = tot_mis_p = tot_mis_a = 0
-
-    def _f(v):
-        return float(v) if v is not None else None
+    agg_categories = {}
 
     for ev in events:
         tot_guests     += ev.guests_total
@@ -253,16 +294,22 @@ def metrics_data(request):
         tot_able       += ev.able_count
         tot_registered += ev.registered_count
         tot_attended   += ev.attended_count
-        tot_mat_p += float(ev.budget_materials_proposed or 0)
-        tot_mat_a += float(ev.budget_materials_actual   or 0)
-        tot_ven_p += float(ev.budget_venue_proposed     or 0)
-        tot_ven_a += float(ev.budget_venue_actual       or 0)
-        tot_tic_p += float(ev.budget_tickets_proposed   or 0)
-        tot_tic_a += float(ev.budget_tickets_actual     or 0)
-        tot_mis_p += float(ev.budget_misc_proposed      or 0)
-        tot_mis_a += float(ev.budget_misc_actual        or 0)
-        tp = ev.total_budget_proposed
-        ta = ev.total_budget_actual
+
+        try:
+            cat_totals = ev.budget.category_totals()
+            total_p = sum(v['proposed'] for v in cat_totals.values()) or None
+            total_a = sum(v['actual'] for v in cat_totals.values()) or None
+        except EventBudget.DoesNotExist:
+            cat_totals = {}
+            total_p = None
+            total_a = None
+
+        for cat, vals in cat_totals.items():
+            if cat not in agg_categories:
+                agg_categories[cat] = {'proposed': 0.0, 'actual': 0.0}
+            agg_categories[cat]['proposed'] += vals['proposed']
+            agg_categories[cat]['actual'] += vals['actual']
+
         rows.append({
             'id': ev.id,
             'name': ev.name,
@@ -277,19 +324,18 @@ def metrics_data(request):
             'registered': ev.registered_count,
             'attended': ev.attended_count,
             'reg_rate': round(ev.registered_count / ev.invited_count * 100) if ev.invited_count else 0,
-            'total_proposed': _f(tp),
-            'total_actual':   _f(ta),
-            'budget_materials_proposed': _f(ev.budget_materials_proposed),
-            'budget_materials_actual':   _f(ev.budget_materials_actual),
-            'budget_venue_proposed':     _f(ev.budget_venue_proposed),
-            'budget_venue_actual':       _f(ev.budget_venue_actual),
-            'budget_tickets_proposed':   _f(ev.budget_tickets_proposed),
-            'budget_tickets_actual':     _f(ev.budget_tickets_actual),
-            'budget_misc_proposed':      _f(ev.budget_misc_proposed),
-            'budget_misc_actual':        _f(ev.budget_misc_actual),
+            'total_proposed': total_p,
+            'total_actual': total_a,
+            'budget_categories': {
+                cat: {'proposed': v['proposed'], 'actual': v['actual']}
+                for cat, v in cat_totals.items()
+            },
         })
 
     avg_rate = round(tot_registered / tot_invited * 100) if tot_invited else 0
+    tot_p = sum(v['proposed'] for v in agg_categories.values())
+    tot_a = sum(v['actual'] for v in agg_categories.values())
+
     return JsonResponse({
         'events': rows,
         'totals': {
@@ -300,14 +346,9 @@ def metrics_data(request):
             'registered': tot_registered,
             'attended': tot_attended,
             'avg_reg_rate': avg_rate,
-            'total_proposed': tot_mat_p + tot_ven_p + tot_tic_p + tot_mis_p,
-            'total_actual':   tot_mat_a + tot_ven_a + tot_tic_a + tot_mis_a,
-            'budget_categories': {
-                'materials': {'proposed': tot_mat_p, 'actual': tot_mat_a},
-                'venue':     {'proposed': tot_ven_p, 'actual': tot_ven_a},
-                'tickets':   {'proposed': tot_tic_p, 'actual': tot_tic_a},
-                'misc':      {'proposed': tot_mis_p, 'actual': tot_mis_a},
-            },
+            'total_proposed': tot_p,
+            'total_actual': tot_a,
+            'budget_categories': agg_categories,
         },
     })
 
@@ -318,6 +359,7 @@ def event_delete(request, event_id):
     event = get_object_or_404(Event, pk=event_id)
     event.delete()
     return JsonResponse({'ok': True})
+
 
 @login_required
 @require_POST
@@ -359,14 +401,6 @@ def event_create(request):
         num_tickets=data.get('num_tickets') or None,
         registrations_due=data.get('registrations_due') or None,
         event_type=data.get('event_type', '').strip(),
-        budget_materials_proposed=data.get('budget_materials_proposed') or None,
-        budget_materials_actual=data.get('budget_materials_actual')     or None,
-        budget_venue_proposed=data.get('budget_venue_proposed')         or None,
-        budget_venue_actual=data.get('budget_venue_actual')             or None,
-        budget_tickets_proposed=data.get('budget_tickets_proposed')     or None,
-        budget_tickets_actual=data.get('budget_tickets_actual')         or None,
-        budget_misc_proposed=data.get('budget_misc_proposed')           or None,
-        budget_misc_actual=data.get('budget_misc_actual')               or None,
         client=client,
         created_by=request.user,
         updated_by=request.user,

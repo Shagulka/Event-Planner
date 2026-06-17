@@ -22,7 +22,7 @@
     border-radius: 12px 12px 0 0 !important;
     padding: 0.9rem 1.2rem;
   }
-  .event-card.past .card-header { background: #6c757d; }
+  .event-card.past .card-header { filter: grayscale(0.45) brightness(0.78); }
   .event-date { font-size: 0.8rem; opacity: 0.8; }
   .event-card .card-title { font-size: 1.05rem; font-weight: 600; margin: 0; }
 
@@ -152,6 +152,7 @@
         <option value="MEETING">Meeting</option>
         <option value="PARTY">Party</option>
         <option value="FUNDRAISER">Fundraiser</option>
+        <option value="DONATION">Donation</option>
         <option value="OTHER">Other</option>
       </select>
     </div>
@@ -234,10 +235,17 @@
 
         <!-- Budget breakdown -->
         <div id="edBudgetSection" class="mb-4 d-none">
-          <p class="fw-semibold small text-uppercase mb-2" style="letter-spacing:.08em;color:var(--brand)">
-            <i class="bi bi-currency-dollar me-1"></i>Budget
-          </p>
-          <div class="rounded-3 border overflow-hidden" id="edBudgetContent"></div>
+          <button type="button"
+                  class="btn btn-link p-0 d-flex align-items-center w-100 mb-0 text-decoration-none"
+                  onclick="toggleDetailBudget()" style="color:var(--brand)">
+            <span class="fw-semibold small text-uppercase" style="letter-spacing:.08em">
+              <i class="bi bi-currency-dollar me-1"></i>Budget
+            </span>
+            <i class="bi bi-chevron-right ms-auto" id="edBudChevron" style="font-size:.8rem;transition:transform .2s"></i>
+          </button>
+          <div id="edBudgetCollapse" class="d-none mt-2">
+            <div class="rounded-3 border overflow-hidden" id="edBudgetContent"></div>
+          </div>
         </div>
 
         <!-- Notes -->
@@ -459,6 +467,7 @@
               <option value="MEETING">Meeting</option>
               <option value="PARTY">Party</option>
               <option value="FUNDRAISER">Fundraiser</option>
+              <option value="DONATION">Donation</option>
               <option value="OTHER">Other</option>
             </select>
           </div>
@@ -499,31 +508,70 @@
             <input id="ecTickets" type="number" min="0" class="form-control" placeholder="—" />
           </div>
           <div class="col-12">
-            <label class="form-label small fw-semibold mb-2">Budget</label>
-            <div class="rounded-3 border overflow-hidden">
-              <table class="table table-sm mb-0" style="font-size:.84rem">
-                <thead style="background:var(--brand);color:#fff">
-                  <tr><th class="py-2 px-3">Category</th><th class="py-2 px-3 text-end">Proposed ($)</th><th class="py-2 px-3 text-end">Actual ($)</th></tr>
-                </thead>
-                <tbody>
-                  <tr><td class="px-3 text-muted"><i class="bi bi-box-seam me-1"></i>Materials</td>
-                      <td class="p-1"><input type="number" id="ecBudMatP" class="form-control form-control-sm text-end" min="0" step="0.01" placeholder="0.00" /></td>
-                      <td class="p-1"><input type="number" id="ecBudMatA" class="form-control form-control-sm text-end" min="0" step="0.01" placeholder="0.00" /></td></tr>
-                  <tr><td class="px-3 text-muted"><i class="bi bi-building me-1"></i>Venue</td>
-                      <td class="p-1"><input type="number" id="ecBudVenP" class="form-control form-control-sm text-end" min="0" step="0.01" placeholder="0.00" /></td>
-                      <td class="p-1"><input type="number" id="ecBudVenA" class="form-control form-control-sm text-end" min="0" step="0.01" placeholder="0.00" /></td></tr>
-                  <tr><td class="px-3 text-muted"><i class="bi bi-ticket-perforated me-1"></i>Tickets</td>
-                      <td class="p-1"><input type="number" id="ecBudTicP" class="form-control form-control-sm text-end" min="0" step="0.01" placeholder="0.00" /></td>
-                      <td class="p-1"><input type="number" id="ecBudTicA" class="form-control form-control-sm text-end" min="0" step="0.01" placeholder="0.00" /></td></tr>
-                  <tr><td class="px-3 text-muted"><i class="bi bi-three-dots me-1"></i>Misc</td>
-                      <td class="p-1"><input type="number" id="ecBudMisP" class="form-control form-control-sm text-end" min="0" step="0.01" placeholder="0.00" /></td>
-                      <td class="p-1"><input type="number" id="ecBudMisA" class="form-control form-control-sm text-end" min="0" step="0.01" placeholder="0.00" /></td></tr>
-                  <tr style="background:#f8f9fc">
-                      <td class="px-3 fw-semibold">Total</td>
-                      <td class="px-3 text-end fw-semibold" id="ecBudTotalP">—</td>
-                      <td class="px-3 text-end fw-semibold" id="ecBudTotalA">—</td></tr>
-                </tbody>
-              </table>
+            <div class="d-flex align-items-center mb-2">
+              <button type="button"
+                      class="btn btn-link p-0 text-decoration-none d-flex align-items-center gap-1"
+                      onclick="toggleBudgetSection('ec')" style="color:var(--brand)">
+                <i class="bi bi-chevron-right small" id="ecBudChevron" style="transition:transform .2s"></i>
+                <span class="form-label small fw-semibold mb-0" style="color:inherit">Budget Line Items</span>
+              </button>
+              <button type="button" class="btn btn-outline-secondary ms-auto" id="ecBudActualBtn"
+                      style="display:none;font-size:.76rem;padding:.2rem .6rem"
+                      onclick="setBudgetActualToProposed('ec')" title="Copy all proposed amounts to actual">
+                <i class="bi bi-arrow-repeat me-1"></i>Set actual = proposed
+              </button>
+            </div>
+            <div id="ecBudCollapse" class="d-none">
+              <div class="rounded-3 border overflow-hidden">
+                <table class="table table-sm mb-0" style="font-size:.84rem">
+                  <thead style="background:var(--brand);color:#fff">
+                    <tr>
+                      <th class="py-2 px-3" style="width:130px">Category</th>
+                      <th class="py-2 px-3">Item</th>
+                      <th class="py-2 px-3 text-end" style="width:110px">Proposed ($)</th>
+                      <th class="py-2 px-3 text-end" style="width:110px">Actual ($)</th>
+                      <th class="py-2 px-2" style="width:36px"></th>
+                    </tr>
+                  </thead>
+                  <tbody id="ecBudBody"></tbody>
+                  <tfoot>
+                    <tr style="background:#f8f9fc;border-top:2px solid #dee2e6">
+                      <td class="p-1">
+                        <select id="ecBudCat" class="form-select form-select-sm">
+                          <option value="">Category…</option>
+                          <option value="materials">Materials</option>
+                          <option value="venue">Venue</option>
+                          <option value="swag">Swag</option>
+                          <option value="tickets">Tickets</option>
+                          <option value="donations">Donations</option>
+                          <option value="travel">Travel</option>
+                          <option value="misc">Misc</option>
+                        </select>
+                      </td>
+                      <td class="p-1">
+                        <input id="ecBudName" type="text" class="form-control form-control-sm" placeholder="Item name…" />
+                      </td>
+                      <td class="p-1">
+                        <input id="ecBudNewP" type="number" class="form-control form-control-sm text-end" min="0" step="0.01" placeholder="0.00" />
+                      </td>
+                      <td class="p-1">
+                        <input id="ecBudNewA" type="number" class="form-control form-control-sm text-end" min="0" step="0.01" placeholder="0.00" />
+                      </td>
+                      <td class="p-1 text-center">
+                        <button type="button" class="btn btn-sm btn-outline-secondary px-2" onclick="addBudgetRow('ec')" title="Add item">
+                          <i class="bi bi-plus-lg"></i>
+                        </button>
+                      </td>
+                    </tr>
+                    <tr style="background:#f0f3fc">
+                      <td colspan="2" class="px-3 py-2 fw-semibold small">Total</td>
+                      <td class="px-3 py-2 text-end fw-semibold small" id="ecBudTotalP">—</td>
+                      <td class="px-3 py-2 text-end fw-semibold small" id="ecBudTotalA">—</td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
             </div>
           </div>
           <div class="col-12">
@@ -584,6 +632,7 @@
               <option value="MEETING">Meeting</option>
               <option value="PARTY">Party</option>
               <option value="FUNDRAISER">Fundraiser</option>
+              <option value="DONATION">Donation</option>
               <option value="OTHER">Other</option>
             </select>
           </div>
@@ -624,31 +673,70 @@
             <input id="eeTickets" type="number" min="0" class="form-control" placeholder="—" />
           </div>
           <div class="col-12">
-            <label class="form-label small fw-semibold mb-2">Budget</label>
-            <div class="rounded-3 border overflow-hidden">
-              <table class="table table-sm mb-0" style="font-size:.84rem">
-                <thead style="background:var(--brand);color:#fff">
-                  <tr><th class="py-2 px-3">Category</th><th class="py-2 px-3 text-end">Proposed ($)</th><th class="py-2 px-3 text-end">Actual ($)</th></tr>
-                </thead>
-                <tbody>
-                  <tr><td class="px-3 text-muted"><i class="bi bi-box-seam me-1"></i>Materials</td>
-                      <td class="p-1"><input type="number" id="eeBudMatP" class="form-control form-control-sm text-end" min="0" step="0.01" placeholder="0.00" /></td>
-                      <td class="p-1"><input type="number" id="eeBudMatA" class="form-control form-control-sm text-end" min="0" step="0.01" placeholder="0.00" /></td></tr>
-                  <tr><td class="px-3 text-muted"><i class="bi bi-building me-1"></i>Venue</td>
-                      <td class="p-1"><input type="number" id="eeBudVenP" class="form-control form-control-sm text-end" min="0" step="0.01" placeholder="0.00" /></td>
-                      <td class="p-1"><input type="number" id="eeBudVenA" class="form-control form-control-sm text-end" min="0" step="0.01" placeholder="0.00" /></td></tr>
-                  <tr><td class="px-3 text-muted"><i class="bi bi-ticket-perforated me-1"></i>Tickets</td>
-                      <td class="p-1"><input type="number" id="eeBudTicP" class="form-control form-control-sm text-end" min="0" step="0.01" placeholder="0.00" /></td>
-                      <td class="p-1"><input type="number" id="eeBudTicA" class="form-control form-control-sm text-end" min="0" step="0.01" placeholder="0.00" /></td></tr>
-                  <tr><td class="px-3 text-muted"><i class="bi bi-three-dots me-1"></i>Misc</td>
-                      <td class="p-1"><input type="number" id="eeBudMisP" class="form-control form-control-sm text-end" min="0" step="0.01" placeholder="0.00" /></td>
-                      <td class="p-1"><input type="number" id="eeBudMisA" class="form-control form-control-sm text-end" min="0" step="0.01" placeholder="0.00" /></td></tr>
-                  <tr style="background:#f8f9fc">
-                      <td class="px-3 fw-semibold">Total</td>
-                      <td class="px-3 text-end fw-semibold" id="eeBudTotalP">—</td>
-                      <td class="px-3 text-end fw-semibold" id="eeBudTotalA">—</td></tr>
-                </tbody>
-              </table>
+            <div class="d-flex align-items-center mb-2">
+              <button type="button"
+                      class="btn btn-link p-0 text-decoration-none d-flex align-items-center gap-1"
+                      onclick="toggleBudgetSection('ee')" style="color:var(--brand)">
+                <i class="bi bi-chevron-right small" id="eeBudChevron" style="transition:transform .2s"></i>
+                <span class="form-label small fw-semibold mb-0" style="color:inherit">Budget Line Items</span>
+              </button>
+              <button type="button" class="btn btn-outline-secondary ms-auto" id="eeBudActualBtn"
+                      style="display:none;font-size:.76rem;padding:.2rem .6rem"
+                      onclick="setBudgetActualToProposed('ee')" title="Copy all proposed amounts to actual">
+                <i class="bi bi-arrow-repeat me-1"></i>Set actual = proposed
+              </button>
+            </div>
+            <div id="eeBudCollapse" class="d-none">
+              <div class="rounded-3 border overflow-hidden">
+                <table class="table table-sm mb-0" style="font-size:.84rem">
+                  <thead style="background:var(--brand);color:#fff">
+                    <tr>
+                      <th class="py-2 px-3" style="width:130px">Category</th>
+                      <th class="py-2 px-3">Item</th>
+                      <th class="py-2 px-3 text-end" style="width:110px">Proposed ($)</th>
+                      <th class="py-2 px-3 text-end" style="width:110px">Actual ($)</th>
+                      <th class="py-2 px-2" style="width:36px"></th>
+                    </tr>
+                  </thead>
+                  <tbody id="eeBudBody"></tbody>
+                  <tfoot>
+                    <tr style="background:#f8f9fc;border-top:2px solid #dee2e6">
+                      <td class="p-1">
+                        <select id="eeBudCat" class="form-select form-select-sm">
+                          <option value="">Category…</option>
+                          <option value="materials">Materials</option>
+                          <option value="venue">Venue</option>
+                          <option value="swag">Swag</option>
+                          <option value="tickets">Tickets</option>
+                          <option value="donations">Donations</option>
+                          <option value="travel">Travel</option>
+                          <option value="misc">Misc</option>
+                        </select>
+                      </td>
+                      <td class="p-1">
+                        <input id="eeBudName" type="text" class="form-control form-control-sm" placeholder="Item name…" />
+                      </td>
+                      <td class="p-1">
+                        <input id="eeBudNewP" type="number" class="form-control form-control-sm text-end" min="0" step="0.01" placeholder="0.00" />
+                      </td>
+                      <td class="p-1">
+                        <input id="eeBudNewA" type="number" class="form-control form-control-sm text-end" min="0" step="0.01" placeholder="0.00" />
+                      </td>
+                      <td class="p-1 text-center">
+                        <button type="button" class="btn btn-sm btn-outline-secondary px-2" onclick="addBudgetRow('ee')" title="Add item">
+                          <i class="bi bi-plus-lg"></i>
+                        </button>
+                      </td>
+                    </tr>
+                    <tr style="background:#f0f3fc">
+                      <td colspan="2" class="px-3 py-2 fw-semibold small">Total</td>
+                      <td class="px-3 py-2 text-end fw-semibold small" id="eeBudTotalP">—</td>
+                      <td class="px-3 py-2 text-end fw-semibold small" id="eeBudTotalA">—</td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
             </div>
           </div>
           <div class="col-12">
@@ -692,66 +780,158 @@
     });
   }
 
-  // ══ Budget helpers ══
-  const BUD_CATS = [
-    { key: 'MatP', keyA: 'MatA', label: 'Materials', icon: 'bi-box-seam' },
-    { key: 'VenP', keyA: 'VenA', label: 'Venue',     icon: 'bi-building' },
-    { key: 'TicP', keyA: 'TicA', label: 'Tickets',   icon: 'bi-ticket-perforated' },
-    { key: 'MisP', keyA: 'MisA', label: 'Misc',      icon: 'bi-three-dots' },
-  ];
+  // ══ Budget line-item helpers ══
+  const BUDGET_CAT_META = {
+    materials: { label: 'Materials', icon: 'bi-box-seam' },
+    venue:     { label: 'Venue',     icon: 'bi-building' },
+    swag:      { label: 'Swag',      icon: 'bi-gift' },
+    tickets:   { label: 'Tickets',   icon: 'bi-ticket-perforated' },
+    donations: { label: 'Donations', icon: 'bi-heart' },
+    travel:    { label: 'Travel',    icon: 'bi-airplane' },
+    misc:      { label: 'Misc',      icon: 'bi-three-dots' },
+  };
+
+  // keyed by modal prefix ('ec' or 'ee')
+  const budgetItems = { ec: [], ee: [] };
 
   function fmtMoney(n) {
     return n > 0 ? '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
   }
 
-  function updateBudgetTotals(prefix) {
+  function renderBudgetItems(prefix) {
+    const items = budgetItems[prefix];
+    document.getElementById(prefix + 'BudBody').innerHTML = items.map((item, idx) => {
+      const m = BUDGET_CAT_META[item.category] || { label: item.category, icon: 'bi-tag' };
+      return `<tr>
+        <td class="px-3 py-1 text-muted" style="font-size:.82rem;white-space:nowrap">
+          <i class="bi ${m.icon} me-1"></i>${m.label}
+        </td>
+        <td class="p-1">
+          <input type="text" class="form-control form-control-sm" value="${item.name.replace(/"/g,'&quot;')}"
+                 oninput="updateBudgetItem('${prefix}', ${idx}, 'name', this.value)" />
+        </td>
+        <td class="p-1">
+          <input type="number" class="form-control form-control-sm text-end"
+                 value="${item.proposed != null ? item.proposed : ''}"
+                 min="0" step="0.01" placeholder="0.00"
+                 oninput="updateBudgetItem('${prefix}', ${idx}, 'proposed', this.value)" />
+        </td>
+        <td class="p-1">
+          <input type="number" class="form-control form-control-sm text-end"
+                 value="${item.actual != null ? item.actual : ''}"
+                 min="0" step="0.01" placeholder="0.00"
+                 oninput="updateBudgetItem('${prefix}', ${idx}, 'actual', this.value)" />
+        </td>
+        <td class="p-1 text-center">
+          <button type="button" class="btn btn-link btn-sm text-danger p-0"
+                  onclick="removeBudgetRow('${prefix}', ${idx})" title="Remove">
+            <i class="bi bi-trash3"></i>
+          </button>
+        </td>
+      </tr>`;
+    }).join('');
+    _updateBudgetTotals(prefix);
+  }
+
+  function updateBudgetItem(prefix, idx, field, value) {
+    const item = budgetItems[prefix][idx];
+    if (!item) return;
+    if (field === 'name') {
+      item.name = value;
+    } else if (field === 'proposed') {
+      item.proposed = parseFloat(value) || null;
+      _updateBudgetTotals(prefix);
+    } else if (field === 'actual') {
+      item.actual = parseFloat(value) || null;
+      _updateBudgetTotals(prefix);
+    }
+  }
+
+  function setBudgetActualToProposed(prefix) {
+    budgetItems[prefix].forEach(item => { item.actual = item.proposed; });
+    renderBudgetItems(prefix);
+  }
+
+  function toggleBudgetSection(prefix) {
+    const collapse = document.getElementById(prefix + 'BudCollapse');
+    const chevron  = document.getElementById(prefix + 'BudChevron');
+    const actBtn   = document.getElementById(prefix + 'BudActualBtn');
+    const isHidden = collapse.classList.contains('d-none');
+    collapse.classList.toggle('d-none', !isHidden);
+    chevron.style.transform = isHidden ? 'rotate(90deg)' : '';
+    if (actBtn) actBtn.style.display = isHidden ? '' : 'none';
+  }
+
+  function toggleDetailBudget() {
+    const collapse = document.getElementById('edBudgetCollapse');
+    const chevron  = document.getElementById('edBudChevron');
+    const isHidden = collapse.classList.contains('d-none');
+    collapse.classList.toggle('d-none', !isHidden);
+    chevron.style.transform = isHidden ? 'rotate(90deg)' : '';
+  }
+
+  function _updateBudgetTotals(prefix) {
+    const items = budgetItems[prefix];
     let tp = 0, ta = 0;
-    BUD_CATS.forEach(c => {
-      tp += parseFloat(document.getElementById(prefix + 'Bud' + c.key)?.value) || 0;
-      ta += parseFloat(document.getElementById(prefix + 'Bud' + c.keyA)?.value) || 0;
-    });
+    items.forEach(item => { tp += item.proposed || 0; ta += item.actual || 0; });
     document.getElementById(prefix + 'BudTotalP').textContent = fmtMoney(tp);
     document.getElementById(prefix + 'BudTotalA').textContent = fmtMoney(ta);
   }
 
-  // Wire up live total updates once DOM is ready
-  BUD_CATS.forEach(c => {
-    ['ec','ee'].forEach(pfx => {
-      document.getElementById(pfx + 'Bud' + c.key)?.addEventListener('input', () => updateBudgetTotals(pfx));
-      document.getElementById(pfx + 'Bud' + c.keyA)?.addEventListener('input', () => updateBudgetTotals(pfx));
-    });
-  });
-
-  function clearBudgetFields(prefix) {
-    BUD_CATS.forEach(c => {
-      document.getElementById(prefix + 'Bud' + c.key).value  = '';
-      document.getElementById(prefix + 'Bud' + c.keyA).value = '';
-    });
-    document.getElementById(prefix + 'BudTotalP').textContent = '—';
-    document.getElementById(prefix + 'BudTotalA').textContent = '—';
+  function addBudgetRow(prefix) {
+    const cat  = document.getElementById(prefix + 'BudCat').value;
+    const name = document.getElementById(prefix + 'BudName').value.trim();
+    if (!cat || !name) { alert('Please select a category and enter an item name.'); return; }
+    const proposed = parseFloat(document.getElementById(prefix + 'BudNewP').value) || null;
+    const actual   = parseFloat(document.getElementById(prefix + 'BudNewA').value) || null;
+    budgetItems[prefix].push({ category: cat, name, proposed, actual });
+    renderBudgetItems(prefix);
+    document.getElementById(prefix + 'BudCat').value  = '';
+    document.getElementById(prefix + 'BudName').value = '';
+    document.getElementById(prefix + 'BudNewP').value = '';
+    document.getElementById(prefix + 'BudNewA').value = '';
   }
 
-  function setBudgetFields(prefix, d) {
-    const map = {MatP:'budMatP', MatA:'budMatA', VenP:'budVenP', VenA:'budVenA',
-                 TicP:'budTicP', TicA:'budTicA', MisP:'budMisP', MisA:'budMisA'};
-    BUD_CATS.forEach(c => {
-      document.getElementById(prefix + 'Bud' + c.key).value  = d[map[c.key]]  || '';
-      document.getElementById(prefix + 'Bud' + c.keyA).value = d[map[c.keyA]] || '';
-    });
-    updateBudgetTotals(prefix);
+  function removeBudgetRow(prefix, idx) {
+    budgetItems[prefix].splice(idx, 1);
+    renderBudgetItems(prefix);
   }
 
-  function getBudgetPayload(prefix) {
-    return {
-      budget_materials_proposed: parseFloat(document.getElementById(prefix + 'BudMatP').value) || null,
-      budget_materials_actual:   parseFloat(document.getElementById(prefix + 'BudMatA').value) || null,
-      budget_venue_proposed:     parseFloat(document.getElementById(prefix + 'BudVenP').value) || null,
-      budget_venue_actual:       parseFloat(document.getElementById(prefix + 'BudVenA').value) || null,
-      budget_tickets_proposed:   parseFloat(document.getElementById(prefix + 'BudTicP').value) || null,
-      budget_tickets_actual:     parseFloat(document.getElementById(prefix + 'BudTicA').value) || null,
-      budget_misc_proposed:      parseFloat(document.getElementById(prefix + 'BudMisP').value) || null,
-      budget_misc_actual:        parseFloat(document.getElementById(prefix + 'BudMisA').value) || null,
-    };
+  function clearBudgetItems(prefix) {
+    budgetItems[prefix] = [];
+    renderBudgetItems(prefix);
+    // Also reset collapse state
+    const collapse = document.getElementById(prefix + 'BudCollapse');
+    const chevron  = document.getElementById(prefix + 'BudChevron');
+    const actBtn   = document.getElementById(prefix + 'BudActualBtn');
+    if (collapse) collapse.classList.add('d-none');
+    if (chevron)  chevron.style.transform = '';
+    if (actBtn)   actBtn.style.display = 'none';
+  }
+
+  async function loadEventBudget(eventId, prefix) {
+    try {
+      const res = await fetch(`/events/${eventId}/budget/`);
+      const data = await res.json();
+      budgetItems[prefix] = data.line_items.map(li => ({
+        category: li.category,
+        name: li.name,
+        proposed: li.proposed_amount,
+        actual: li.actual_amount,
+      }));
+    } catch {
+      budgetItems[prefix] = [];
+    }
+    renderBudgetItems(prefix);
+  }
+
+  function getBudgetLineItems(prefix) {
+    return budgetItems[prefix].map(item => ({
+      category: item.category,
+      name: item.name,
+      proposed_amount: item.proposed,
+      actual_amount: item.actual,
+    }));
   }
 
   // ══ Event card search + type filter ══
@@ -760,6 +940,7 @@
     MEETING:    { label: 'Meeting',    color: '#0ca678' },
     PARTY:      { label: 'Party',      color: '#7c3aed' },
     FUNDRAISER: { label: 'Fundraiser', color: '#e67700' },
+    DONATION:   { label: 'Donation',   color: '#d63384' },
     OTHER:      { label: 'Other',      color: '#6c757d' },
   };
 
@@ -1281,7 +1462,7 @@
     ["ecName","ecDate","ecTime","ecLocation","ecRegDue","ecTickets","ecDescription","ecNotes"]
       .forEach((id) => (document.getElementById(id).value = ""));
     document.getElementById("ecEventType").value = "";
-    clearBudgetFields("ec");
+    clearBudgetItems("ec");
     document.getElementById("ecError").classList.add("d-none");
     document.getElementById("ecNewClientRow").classList.add("d-none");
     document.getElementById("ecNewClientBtn").classList.remove("d-none");
@@ -1310,13 +1491,17 @@
       num_tickets: document.getElementById("ecTickets").value || null,
       description: document.getElementById("ecDescription").value.trim(),
       notes: document.getElementById("ecNotes").value.trim(),
-      ...getBudgetPayload("ec"),
     });
     if (!res.ok) {
       const data = await res.json();
       errEl.textContent = data.error || "Failed to create event.";
       errEl.classList.remove("d-none");
       return;
+    }
+    const eventData = await res.json();
+    const lineItems = getBudgetLineItems("ec");
+    if (lineItems.length > 0) {
+      await postJSON(`/events/${eventData.id}/budget/save/`, { line_items: lineItems });
     }
     eventCreateModal.hide();
     window.location.reload();
@@ -1429,7 +1614,7 @@
     document.getElementById("eeDescription").value = d.description;
     document.getElementById("eeNotes").value = d.notes;
     document.getElementById("eeEventType").value = d.eventType || '';
-    setBudgetFields("ee", d);
+    clearBudgetItems("ee");
     document.getElementById("eeError").classList.add("d-none");
     document.getElementById("eeNewClientRow").classList.add("d-none");
     document.getElementById("eeNewClientBtn").classList.remove("d-none");
@@ -1439,6 +1624,7 @@
     }
     setupEventClientTypeahead("ee");
     eventEditModal.show();
+    loadEventBudget(d.id, "ee");
   }
 
   async function deleteEventFromEdit() {
@@ -1474,7 +1660,6 @@
       num_tickets: document.getElementById("eeTickets").value || null,
       description: document.getElementById("eeDescription").value.trim(),
       notes: document.getElementById("eeNotes").value.trim(),
-      ...getBudgetPayload("ee"),
     });
     if (!res.ok) {
       const data = await res.json();
@@ -1482,6 +1667,7 @@
       errEl.classList.remove("d-none");
       return;
     }
+    await postJSON(`/events/${id}/budget/save/`, { line_items: getBudgetLineItems("ee") });
     eventEditModal.hide();
     window.location.reload();
   }
@@ -1560,8 +1746,10 @@
     const clientName = clientBadge ? clientBadge.textContent.trim() : '';
     const isUpcoming = !card.classList.contains('past');
 
-    // Header colour
-    document.getElementById('edHeader').style.background = isUpcoming ? 'var(--brand)' : '#6c757d';
+    // Header colour — type-specific, muted for past events
+    const typeColor = typeMeta?.color || 'var(--brand)';
+    document.getElementById('edHeader').style.background = typeColor;
+    document.getElementById('edHeader').style.filter = isUpcoming ? '' : 'grayscale(0.45) brightness(0.8)';
     document.getElementById('edTitle').textContent = d.name;
     const typeMeta = d.eventType && EVENT_TYPE_META[d.eventType];
     const typeBadge = typeMeta
@@ -1630,61 +1818,79 @@
       statsSection.classList.add('d-none');
     }
 
-    // Budget breakdown
+    // Budget breakdown — load async (collapsed by default)
     const budgetSection = document.getElementById('edBudgetSection');
-    const budRows = BUD_CATS.map(c => {
-      const p = d[c.key.replace('P','').toLowerCase() === 'mat' ? 'budMatP' :
-                  c.key === 'VenP' ? 'budVenP' : c.key === 'TicP' ? 'budTicP' : 'budMisP'];
-      // Use dataset key mapping
-      return null; // placeholder
-    });
-    const catMap = [
-      { label:'Materials', icon:'bi-box-seam',         kp:'budMatP', ka:'budMatA' },
-      { label:'Venue',     icon:'bi-building',          kp:'budVenP', ka:'budVenA' },
-      { label:'Tickets',   icon:'bi-ticket-perforated', kp:'budTicP', ka:'budTicA' },
-      { label:'Misc',      icon:'bi-three-dots',        kp:'budMisP', ka:'budMisA' },
-    ];
-    const hasBudget = catMap.some(c => d[c.kp] || d[c.ka]);
-    if (hasBudget) {
+    budgetSection.classList.add('d-none');
+    document.getElementById('edBudgetCollapse').classList.add('d-none');
+    document.getElementById('edBudChevron').style.transform = '';
+    document.getElementById('edBudgetContent').innerHTML =
+      '<div class="text-center py-3 text-muted small"><div class="spinner-border spinner-border-sm me-1"></div>Loading…</div>';
+    fetch(`/events/${d.id}/budget/`).then(r => r.json()).then(bdata => {
+      if (!bdata.line_items || !bdata.line_items.length) return;
       budgetSection.classList.remove('d-none');
+      // Group by category
+      const grouped = {};
+      bdata.line_items.forEach(li => {
+        if (!grouped[li.category]) grouped[li.category] = [];
+        grouped[li.category].push(li);
+      });
       let totalP = 0, totalA = 0;
-      const bodyRows = catMap.map(c => {
-        const p = parseFloat(d[c.kp]) || 0;
-        const a = parseFloat(d[c.ka]) || 0;
-        totalP += p; totalA += a;
-        const variance = a && p ? a - p : null;
-        const varHtml = variance !== null
-          ? `<span style="color:${variance <= 0 ? '#198754' : '#dc3545'};font-size:.8rem">${variance <= 0 ? '▼' : '▲'} $${Math.abs(variance).toLocaleString('en-US',{minimumFractionDigits:2})}</span>`
+      let bodyRows = '';
+      Object.entries(grouped).forEach(([cat, items]) => {
+        const m = BUDGET_CAT_META[cat] || { label: cat, icon: 'bi-tag' };
+        const catP = items.reduce((s, li) => s + (li.proposed_amount || 0), 0);
+        const catA = items.reduce((s, li) => s + (li.actual_amount || 0), 0);
+        totalP += catP; totalA += catA;
+        const catVar = catA && catP ? catA - catP : null;
+        const catVarHtml = catVar !== null
+          ? `<span style="color:${catVar<=0?'#198754':'#dc3545'};font-size:.8rem">${catVar<=0?'▼':'▲'} $${Math.abs(catVar).toLocaleString('en-US',{minimumFractionDigits:2})}</span>`
           : '';
-        return `<tr>
-          <td class="px-3 py-2 text-muted" style="font-size:.85rem"><i class="bi ${c.icon} me-1"></i>${c.label}</td>
-          <td class="px-3 py-2 text-end" style="font-size:.85rem">${p ? '$'+p.toLocaleString('en-US',{minimumFractionDigits:2}) : '—'}</td>
-          <td class="px-3 py-2 text-end" style="font-size:.85rem">${a ? '$'+a.toLocaleString('en-US',{minimumFractionDigits:2}) : '—'}</td>
-          <td class="px-3 py-2 text-end">${varHtml}</td>
+        bodyRows += `<tr style="background:#f8f9fc">
+          <td colspan="2" class="px-3 py-1 fw-semibold" style="font-size:.82rem">
+            <i class="bi ${m.icon} me-1" style="color:var(--brand)"></i>${m.label}
+          </td>
+          <td class="px-3 py-1 text-end fw-semibold" style="font-size:.82rem">${catP?'$'+catP.toLocaleString('en-US',{minimumFractionDigits:2}):'—'}</td>
+          <td class="px-3 py-1 text-end fw-semibold" style="font-size:.82rem">${catA?'$'+catA.toLocaleString('en-US',{minimumFractionDigits:2}):'—'}</td>
+          <td class="px-3 py-1 text-end">${catVarHtml}</td>
         </tr>`;
-      }).join('');
+        items.forEach(li => {
+          const v = li.actual_amount && li.proposed_amount ? li.actual_amount - li.proposed_amount : null;
+          const vHtml = v !== null
+            ? `<span style="color:${v<=0?'#198754':'#dc3545'};font-size:.78rem">${v<=0?'▼':'▲'} $${Math.abs(v).toLocaleString('en-US',{minimumFractionDigits:2})}</span>`
+            : '';
+          bodyRows += `<tr>
+            <td class="ps-4 pe-3 py-1 text-muted" style="font-size:.82rem" colspan="2">${li.name}</td>
+            <td class="px-3 py-1 text-end text-muted" style="font-size:.82rem">${li.proposed_amount?'$'+li.proposed_amount.toLocaleString('en-US',{minimumFractionDigits:2}):'—'}</td>
+            <td class="px-3 py-1 text-end text-muted" style="font-size:.82rem">${li.actual_amount?'$'+li.actual_amount.toLocaleString('en-US',{minimumFractionDigits:2}):'—'}</td>
+            <td class="px-3 py-1 text-end">${vHtml}</td>
+          </tr>`;
+        });
+      });
       const totVar = totalA && totalP ? totalA - totalP : null;
       const totVarHtml = totVar !== null
-        ? `<span style="color:${totVar <= 0 ? '#198754' : '#dc3545'};font-size:.82rem">${totVar <= 0 ? '▼' : '▲'} $${Math.abs(totVar).toLocaleString('en-US',{minimumFractionDigits:2})}</span>`
+        ? `<span style="color:${totVar<=0?'#198754':'#dc3545'};font-size:.82rem">${totVar<=0?'▼':'▲'} $${Math.abs(totVar).toLocaleString('en-US',{minimumFractionDigits:2})}</span>`
         : '';
       document.getElementById('edBudgetContent').innerHTML = `
         <table class="table table-sm mb-0" style="font-size:.85rem">
           <thead style="background:var(--brand);color:#fff">
-            <tr><th class="py-2 px-3">Category</th><th class="py-2 px-3 text-end">Proposed</th><th class="py-2 px-3 text-end">Actual</th><th class="py-2 px-3 text-end">Variance</th></tr>
+            <tr>
+              <th class="py-2 px-3" colspan="2">Category / Item</th>
+              <th class="py-2 px-3 text-end">Proposed</th>
+              <th class="py-2 px-3 text-end">Actual</th>
+              <th class="py-2 px-3 text-end">Variance</th>
+            </tr>
           </thead>
           <tbody>${bodyRows}</tbody>
-          <tfoot style="background:#f8f9fc">
+          <tfoot style="background:#f0f3fc">
             <tr class="fw-semibold">
-              <td class="px-3 py-2">Total</td>
-              <td class="px-3 py-2 text-end">${totalP ? '$'+totalP.toLocaleString('en-US',{minimumFractionDigits:2}) : '—'}</td>
-              <td class="px-3 py-2 text-end">${totalA ? '$'+totalA.toLocaleString('en-US',{minimumFractionDigits:2}) : '—'}</td>
+              <td class="px-3 py-2" colspan="2">Total</td>
+              <td class="px-3 py-2 text-end">${totalP?'$'+totalP.toLocaleString('en-US',{minimumFractionDigits:2}):'—'}</td>
+              <td class="px-3 py-2 text-end">${totalA?'$'+totalA.toLocaleString('en-US',{minimumFractionDigits:2}):'—'}</td>
               <td class="px-3 py-2 text-end">${totVarHtml}</td>
             </tr>
           </tfoot>
         </table>`;
-    } else {
-      budgetSection.classList.add('d-none');
-    }
+    }).catch(() => { /* budget section stays hidden */ });
 
     // Notes
     const notesSection = document.getElementById('edNotesSection');

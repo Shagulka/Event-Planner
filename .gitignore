@@ -1,3 +1,13 @@
 *.venv
 *.env
 *WFcontacts.csv
+*db.sqlite3
+*settings.py
+WatsonForsbergEvents/db.sqlite3
+WatsonForsbergEvents/eventPlanner/settings.py
+*.sqlite3
+*.claude
+*migrations
+*.pyc
+__pycache__
+*.log

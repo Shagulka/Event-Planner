@@ -312,53 +312,8 @@
     </div>
   </div>
 
-  <!-- Category breakdown -->
-  <div class="row g-3 mb-4" id="budgetCategoryRow">
-    <div class="col-6 col-lg-3">
-      <div class="metric-card">
-        <div class="label mb-2"><i class="bi bi-box-seam me-1"></i>Materials</div>
-        <div class="d-flex justify-content-between align-items-baseline mb-1">
-          <span class="fw-bold" id="budMatActual" style="font-size:1.2rem;color:var(--brand-dark)">—</span>
-          <span class="text-muted small" id="budMatProp"></span>
-        </div>
-        <div class="funnel-bar"><div class="funnel-bar-fill" id="budMatBar" style="background:#3b5bdb;width:0%"></div></div>
-        <div id="budMatVar" class="small mt-1"></div>
-      </div>
-    </div>
-    <div class="col-6 col-lg-3">
-      <div class="metric-card">
-        <div class="label mb-2"><i class="bi bi-building me-1"></i>Venue</div>
-        <div class="d-flex justify-content-between align-items-baseline mb-1">
-          <span class="fw-bold" id="budVenActual" style="font-size:1.2rem;color:var(--brand-dark)">—</span>
-          <span class="text-muted small" id="budVenProp"></span>
-        </div>
-        <div class="funnel-bar"><div class="funnel-bar-fill" id="budVenBar" style="background:#0ca678;width:0%"></div></div>
-        <div id="budVenVar" class="small mt-1"></div>
-      </div>
-    </div>
-    <div class="col-6 col-lg-3">
-      <div class="metric-card">
-        <div class="label mb-2"><i class="bi bi-ticket-perforated me-1"></i>Tickets</div>
-        <div class="d-flex justify-content-between align-items-baseline mb-1">
-          <span class="fw-bold" id="budTicActual" style="font-size:1.2rem;color:var(--brand-dark)">—</span>
-          <span class="text-muted small" id="budTicProp"></span>
-        </div>
-        <div class="funnel-bar"><div class="funnel-bar-fill" id="budTicBar" style="background:#7c3aed;width:0%"></div></div>
-        <div id="budTicVar" class="small mt-1"></div>
-      </div>
-    </div>
-    <div class="col-6 col-lg-3">
-      <div class="metric-card">
-        <div class="label mb-2"><i class="bi bi-three-dots me-1"></i>Misc</div>
-        <div class="d-flex justify-content-between align-items-baseline mb-1">
-          <span class="fw-bold" id="budMisActual" style="font-size:1.2rem;color:var(--brand-dark)">—</span>
-          <span class="text-muted small" id="budMisProp"></span>
-        </div>
-        <div class="funnel-bar"><div class="funnel-bar-fill" id="budMisBar" style="background:#e67700;width:0%"></div></div>
-        <div id="budMisVar" class="small mt-1"></div>
-      </div>
-    </div>
-  </div>
+  <!-- Category breakdown (rendered dynamically) -->
+  <div class="row g-3 mb-4" id="budgetCategoryRow"></div>
 
   <!-- Table -->
   <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
@@ -370,6 +325,7 @@
         <option value="MEETING">Meeting</option>
         <option value="PARTY">Party</option>
         <option value="FUNDRAISER">Fundraiser</option>
+        <option value="DONATION">Donation</option>
         <option value="OTHER">Other</option>
       </select>
       <input
@@ -448,7 +404,7 @@
 
   const EVENT_TYPE_COLORS = {
     CONFERENCE: '#3b5bdb', MEETING: '#0ca678', PARTY: '#7c3aed',
-    FUNDRAISER: '#e67700', OTHER: '#6c757d',
+    FUNDRAISER: '#e67700', DONATION: '#d63384', OTHER: '#6c757d',
   };
 
   function fmtDate(d) { return d.toISOString().slice(0, 10); }
@@ -547,24 +503,51 @@
     document.getElementById("sumUtilization").textContent = (tp && ta)
       ? Math.round(ta / tp * 100) + '%' : '—';
 
-    const budCats = [
-      { kP:'budget_materials_proposed', kA:'budget_materials_actual', idA:'budMatActual', idP:'budMatProp', idBar:'budMatBar', idVar:'budMatVar' },
-      { kP:'budget_venue_proposed',     kA:'budget_venue_actual',     idA:'budVenActual', idP:'budVenProp', idBar:'budVenBar', idVar:'budVenVar' },
-      { kP:'budget_tickets_proposed',   kA:'budget_tickets_actual',   idA:'budTicActual', idP:'budTicProp', idBar:'budTicBar', idVar:'budTicVar' },
-      { kP:'budget_misc_proposed',      kA:'budget_misc_actual',      idA:'budMisActual', idP:'budMisProp', idBar:'budMisBar', idVar:'budMisVar' },
-    ];
-    budCats.forEach(c => {
-      const p = rows.reduce((s, r) => s + (r[c.kP] || 0), 0);
-      const a = rows.reduce((s, r) => s + (r[c.kA] || 0), 0);
-      document.getElementById(c.idA).textContent = a ? fmtK(a) : '—';
-      document.getElementById(c.idP).textContent = p ? `of ${fmtK(p)}` : '';
-      document.getElementById(c.idBar).style.width =
-        (p > 0 ? Math.min(Math.round(a / p * 100), 100) : (a > 0 ? 100 : 0)) + '%';
-      const v = (a && p) ? a - p : null;
-      const ve = document.getElementById(c.idVar);
-      ve.textContent = v != null ? (v <= 0 ? `▼ ${fmtK(Math.abs(v))} under` : `▲ ${fmtK(Math.abs(v))} over`) : '';
-      ve.style.color  = v != null ? (v <= 0 ? '#198754' : '#dc3545') : '';
+    // Aggregate budget categories across visible rows
+    const aggCats = {};
+    rows.forEach(r => {
+      if (r.budget_categories) {
+        Object.entries(r.budget_categories).forEach(([cat, vals]) => {
+          if (!aggCats[cat]) aggCats[cat] = { proposed: 0, actual: 0 };
+          aggCats[cat].proposed += vals.proposed || 0;
+          aggCats[cat].actual   += vals.actual   || 0;
+        });
+      }
     });
+    const BUD_CAT_META = {
+      materials: { label: 'Materials', icon: 'bi-box-seam',          color: '#3b5bdb' },
+      venue:     { label: 'Venue',     icon: 'bi-building',           color: '#0ca678' },
+      swag:      { label: 'Swag',      icon: 'bi-gift',               color: '#7c3aed' },
+      tickets:   { label: 'Tickets',   icon: 'bi-ticket-perforated',  color: '#e67700' },
+      donations: { label: 'Donations', icon: 'bi-heart',              color: '#d63384' },
+      travel:    { label: 'Travel',    icon: 'bi-airplane',           color: '#0dcaf0' },
+      misc:      { label: 'Misc',      icon: 'bi-three-dots',         color: '#6c757d' },
+    };
+    const catRow = document.getElementById('budgetCategoryRow');
+    if (Object.keys(aggCats).length === 0) {
+      catRow.innerHTML = '';
+    } else {
+      catRow.innerHTML = Object.entries(aggCats).map(([cat, vals]) => {
+        const m = BUD_CAT_META[cat] || { label: cat, icon: 'bi-tag', color: '#6c757d' };
+        const p = vals.proposed, a = vals.actual;
+        const pct = p > 0 ? Math.min(Math.round(a / p * 100), 100) : (a > 0 ? 100 : 0);
+        const v = (a && p) ? a - p : null;
+        const vHtml = v != null
+          ? `<div class="small mt-1" style="color:${v<=0?'#198754':'#dc3545'}">${v<=0?'▼':'▲'} ${fmtK(Math.abs(v))} ${v<=0?'under':'over'}</div>`
+          : '';
+        return `<div class="col-6 col-lg-3 col-xl">
+          <div class="metric-card">
+            <div class="label mb-2"><i class="bi ${m.icon} me-1"></i>${m.label}</div>
+            <div class="d-flex justify-content-between align-items-baseline mb-1">
+              <span class="fw-bold" style="font-size:1.2rem;color:var(--brand-dark)">${a?fmtK(a):'—'}</span>
+              <span class="text-muted small">${p?'of '+fmtK(p):''}</span>
+            </div>
+            <div class="funnel-bar"><div class="funnel-bar-fill" style="background:${m.color};width:${pct}%"></div></div>
+            ${vHtml}
+          </div>
+        </div>`;
+      }).join('');
+    }
   }
 
   // ── Table render ──
