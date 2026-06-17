@@ -1,13 +1,37 @@
-*.venv
-*.env
-*WFcontacts.csv
-*db.sqlite3
-*settings.py
-WatsonForsbergEvents/db.sqlite3
-WatsonForsbergEvents/eventPlanner/settings.py
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Django
 *.sqlite3
-*.claude
-*migrations
-*.pyc
-__pycache__
+*.db
+/media/
+/staticfiles/
 *.log
+
+# Environment & secrets
+.env
+.env.*
+WatsonForsbergEvents/eventPlanner/settings.py
+
+# Data files
+*.csv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude
+.claude/
