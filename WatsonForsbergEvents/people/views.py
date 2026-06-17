@@ -1,6 +1,6 @@
 import datetime
 import json
-from django.db.models import Exists, OuterRef
+from django.db.models import Exists, OuterRef, Q
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET, require_POST
 from django.contrib.auth.decorators import login_required
@@ -41,7 +41,8 @@ def search(request):
         return JsonResponse([], safe=False)
     people = (
         Person.objects
-        .filter(name__icontains=q)
+        .filter(Q(name__icontains=q) | Q(company__name__icontains=q))
+        .distinct()
         .prefetch_related('company')
         .order_by('last_name', 'first_name')[:20]
     )

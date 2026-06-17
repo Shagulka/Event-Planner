@@ -16,10 +16,14 @@ def index(request):
     events = (
         Event.objects
         .select_related("client")
-        .annotate(uninvited_count=Count(
-            'event_guests',
-            filter=Q(event_guests__invited=False)
-        ))
+        .annotate(
+            uninvited_count=Count(
+                'event_guests',
+                filter=Q(event_guests__invited=False),
+                distinct=True,
+            ),
+            total_guests=Count('event_guests', distinct=True),
+        )
         .order_by("date")
     )
 

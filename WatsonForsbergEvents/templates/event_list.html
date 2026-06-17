@@ -1343,7 +1343,7 @@
 
   function setBudgetActualToProposed(prefix) {
     budgetItems[prefix].forEach((item) => {
-      item.actual = item.proposed;
+      if (item.actual == null) item.actual = item.proposed;
     });
     renderBudgetItems(prefix);
   }

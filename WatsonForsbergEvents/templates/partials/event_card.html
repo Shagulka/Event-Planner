@@ -55,7 +55,7 @@
         {% endwith %}
         <button class="btn btn-sm btn-outline btn-guests ms-auto"
                 onclick="event.stopPropagation(); openGuests({{ event.id }}, '{{ event.name|escapejs }}')">
-          <i class="bi bi-people-fill me-1"></i>Guests
+          <i class="bi bi-people-fill me-1"></i>{% if event.total_guests %}{{ event.total_guests }} {% endif %}Guests
         </button>
         <button class="btn btn-sm btn-outline btn-guests"
                 onclick="event.stopPropagation(); openEventEdit(this);"
