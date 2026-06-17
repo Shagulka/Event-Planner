@@ -18,7 +18,6 @@ env/
 # Environment & secrets
 .env
 .env.*
-WatsonForsbergEvents/eventPlanner/settings.py
 
 # Data files
 *.csv
