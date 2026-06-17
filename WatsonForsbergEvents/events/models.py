@@ -1,3 +1,5 @@
+from decimal import InvalidOperation as _DecimalInvalidOperation
+
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import models
 
@@ -34,21 +36,30 @@ class EventBudget(models.Model):
 
     @property
     def total_proposed(self):
-        s = sum(float(li.proposed_amount or 0) for li in self.line_items.all())
-        return s if s else None
+        try:
+            s = sum(float(li.proposed_amount or 0) for li in self.line_items.all())
+            return s if s else None
+        except (_DecimalInvalidOperation, TypeError, ValueError):
+            return None
 
     @property
     def total_actual(self):
-        s = sum(float(li.actual_amount or 0) for li in self.line_items.all())
-        return s if s else None
+        try:
+            s = sum(float(li.actual_amount or 0) for li in self.line_items.all())
+            return s if s else None
+        except (_DecimalInvalidOperation, TypeError, ValueError):
+            return None
 
     def category_totals(self):
         totals = {}
-        for li in self.line_items.all():
-            if li.category not in totals:
-                totals[li.category] = {'proposed': 0.0, 'actual': 0.0}
-            totals[li.category]['proposed'] += float(li.proposed_amount or 0)
-            totals[li.category]['actual'] += float(li.actual_amount or 0)
+        try:
+            for li in self.line_items.all():
+                if li.category not in totals:
+                    totals[li.category] = {'proposed': 0.0, 'actual': 0.0}
+                totals[li.category]['proposed'] += float(li.proposed_amount or 0)
+                totals[li.category]['actual'] += float(li.actual_amount or 0)
+        except (_DecimalInvalidOperation, TypeError, ValueError):
+            pass
         return totals
 
 

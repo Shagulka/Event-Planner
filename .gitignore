@@ -14,7 +14,6 @@ env/
 *.db
 /media/
 /staticfiles/
-*migrations/
 *.log
 
 # Environment & secrets
