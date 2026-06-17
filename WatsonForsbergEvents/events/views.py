@@ -23,11 +23,26 @@ def index(request):
         .order_by("date")
     )
 
+    type_display = dict(Event.EventType.choices)
+    raw_counts = (
+        Event.objects
+        .filter(date__gte=today)
+        .exclude(event_type='')
+        .values('event_type')
+        .annotate(n=Count('id'))
+        .order_by('event_type')
+    )
+    upcoming_type_counts = ' · '.join(
+        f"{row['n']} {type_display.get(row['event_type'], row['event_type'])}"
+        for row in raw_counts
+    )
+
     return render(request, "event_list.html", {
         "upcoming_events": events.filter(date__gte=today),
         "past_events": events.filter(date__lt=today),
         "today": today,
         "google_maps_api_key": settings.GOOGLE_MAPS_API_KEY,
+        "upcoming_type_counts": upcoming_type_counts,
     })
 
 

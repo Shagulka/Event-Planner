@@ -8,6 +8,7 @@ BUDGET_CATEGORIES = [
     ('tickets', 'Tickets'),
     ('donations', 'Donations'),
     ('travel', 'Travel'),
+    ('sponsorships', 'Sponsorships'),
     ('misc', 'Misc'),
 ]
 
@@ -85,7 +86,8 @@ class Event(models.Model):
         MEETING    = 'MEETING',    'Meeting'
         PARTY      = 'PARTY',      'Party'
         FUNDRAISER = 'FUNDRAISER', 'Fundraiser'
-        DONATION   = 'DONATION',    'Donation'
+        DONATION   = 'DONATION',   'Donation'
+        AWARDS     = 'AWARDS',     'Awards'
         OTHER      = 'OTHER',      'Other'
 
     event_type = models.CharField(max_length=20, choices=EventType.choices, blank=True, default='')
