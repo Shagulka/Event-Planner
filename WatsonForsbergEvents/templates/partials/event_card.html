@@ -3,10 +3,10 @@
        style="cursor: pointer" onclick="openEventDetail(this)">
 
     <div class="card-header d-flex justify-content-between align-items-start gap-2"
-         style="background:{% if event.event_type == 'CONFERENCE' %}#3b5bdb{% elif event.event_type == 'MEETING' %}#0ca678{% elif event.event_type == 'PARTY' %}#7c3aed{% elif event.event_type == 'FUNDRAISER' %}#e67700{% elif event.event_type == 'DONATION' %}#d63384{% elif event.event_type == 'AWARDS' %}#d97706{% elif event.event_type == 'OTHER' %}#6c757d{% else %}var(--brand){% endif %}">
+         style="background:{% if event.event_type == 'CONFERENCE' %}#3b5bdb{% elif event.event_type == 'MEETING' %}#0ca678{% elif event.event_type == 'PARTY' %}#7c3aed{% elif event.event_type == 'FUNDRAISER' %}#e67700{% elif event.event_type == 'DONATION' %}#d63384{% elif event.event_type == 'AWARDS' %}#663401{% elif event.event_type == 'OTHER' %}#6c757d{% else %}var(--brand){% endif %}">
       <div>
         <p class="event-date mb-1">
-          <i class="bi bi-calendar3 me-1"></i>{{ event.date|date:"N j, Y" }}{% if event.time %}&nbsp;<i class="bi bi-clock me-1"></i>{{ event.time|time:"g:i A" }}{% endif %}
+          <i class="bi bi-calendar3 me-1"></i>{% if event.end_date and event.end_date != event.date %}{{ event.date|date:"N j" }}–{{ event.end_date|date:"N j, Y" }}{% else %}{{ event.date|date:"N j, Y" }}{% endif %}{% if event.time %}&nbsp;<i class="bi bi-clock me-1"></i>{{ event.time|time:"g:i A" }}{% if event.end_time %} – {{ event.end_time|time:"g:i A" }}{% endif %}{% elif event.end_time %}&nbsp;<i class="bi bi-clock me-1"></i>ends {{ event.end_time|time:"g:i A" }}{% endif %}
         </p>
         <h5 class="card-title">{{ event.name }}</h5>
         {% if event.event_type %}
@@ -63,6 +63,8 @@
                 data-name="{{ event.name }}"
                 data-date="{{ event.date|date:'Y-m-d' }}"
                 data-time="{{ event.time|time:'H:i'|default:'' }}"
+                data-end-date="{{ event.end_date|date:'Y-m-d'|default:'' }}"
+                data-end-time="{{ event.end_time|time:'H:i'|default:'' }}"
                 data-location="{{ event.location }}"
                 data-client="{{ event.client_id|default:'' }}"
                 data-client-name="{{ event.client.name|default:'' }}"

@@ -79,6 +79,8 @@ class Event(models.Model):
     name = models.CharField(max_length=200)
     date = models.DateField()
     time = models.TimeField(null=True, blank=True)
+    end_date = models.DateField(null=True, blank=True)
+    end_time = models.TimeField(null=True, blank=True)
     location = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     notes = models.TextField(blank=True)

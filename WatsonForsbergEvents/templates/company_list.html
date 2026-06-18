@@ -11,7 +11,7 @@
     background: #fff;
     border-radius: 12px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.07);
-    overflow: hidden;
+    overflow-x: auto;
   }
   .companies-table thead {
     background: var(--brand);
@@ -107,6 +107,14 @@
   .cp-typeahead-item:last-child { border-bottom: none; }
   .cp-typeahead-item:hover, .cp-typeahead-item.active { background: #eef1fc; }
   .cp-typeahead-item .meta { font-size: .73rem; color: #888; }
+
+  .btn-copy {
+    background: none; border: none; padding: .2rem .3rem;
+    border-radius: 6px; cursor: pointer; opacity: .4;
+    font-size: .78rem; line-height: 1; color: #555; flex-shrink: 0;
+    transition: opacity .12s, background .12s, color .12s;
+  }
+  .btn-copy:hover { opacity: 1; background: #eef1fc; }
 </style>
 {% endblock %}
 
@@ -195,8 +203,8 @@
             {% endif %}
           </td>
           <td class="col-contact">
-            {% if c.email %}<a href="mailto:{{ c.email }}" class="d-block text-decoration-none text-muted small"><i class="bi bi-envelope me-1"></i>{{ c.email }}</a>{% endif %}
-            {% if c.phone %}<span class="d-block text-muted small"><i class="bi bi-telephone me-1"></i>{{ c.phone }}</span>{% endif %}
+            {% if c.email %}<a href="mailto:{{ c.email }}" class="d-block text-decoration-none small" style="color:#0d6efd"><i class="bi bi-envelope me-1"></i>{{ c.email }}</a>{% endif %}
+            {% if c.phone %}<a href="tel:{{ c.phone }}" class="d-block text-decoration-none small" style="color:#0d6efd"><i class="bi bi-telephone me-1"></i>{{ c.phone }}</a>{% endif %}
           </td>
           <td class="text-muted small" style="max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
             {{ c.notes|truncatechars:80 }}
@@ -547,9 +555,9 @@
   function buildRow(c) {
     const initials = (c.name || '?').slice(0, 2).toUpperCase();
     const emailHtml = c.email
-      ? `<a href="mailto:${c.email}" class="d-block text-decoration-none text-muted small"><i class="bi bi-envelope me-1"></i>${c.email}</a>` : '';
+      ? `<a href="mailto:${c.email}" class="d-block text-decoration-none small" style="color:#0d6efd"><i class="bi bi-envelope me-1"></i>${c.email}</a>` : '';
     const phoneHtml = c.phone
-      ? `<span class="d-block text-muted small"><i class="bi bi-telephone me-1"></i>${c.phone}</span>` : '';
+      ? `<a href="tel:${c.phone}" class="d-block text-decoration-none small" style="color:#0d6efd"><i class="bi bi-telephone me-1"></i>${c.phone}</a>` : '';
     const notesPrev = c.notes
       ? c.notes.replace(/</g, '&lt;').slice(0, 80) + (c.notes.length > 80 ? '…' : '') : '';
     const esc = (s) => (s || '').replace(/'/g, "\\'");
@@ -725,15 +733,28 @@
   }
 
   function buildQuickInfo(email, phone, website, marketArea) {
+    const esc = v => (v || '').replace(/'/g, '&#39;');
+    const withCopy = (chipHtml, val) =>
+      `<span class="d-inline-flex align-items-center gap-1">${chipHtml}<button class="btn-copy" onclick="copyContact('${esc(val)}',this)" title="Copy"><i class="bi bi-clipboard"></i></button></span>`;
     const chips = [];
-    if (email) chips.push(`<a href="mailto:${email}" class="contact-chip"><i class="bi bi-envelope text-muted"></i>${email}</a>`);
-    if (phone) chips.push(`<span class="contact-chip"><i class="bi bi-telephone text-muted"></i>${phone}</span>`);
+    if (email) chips.push(withCopy(`<a href="mailto:${email}" class="contact-chip" style="color:#0d6efd"><i class="bi bi-envelope text-muted"></i>${email}</a>`, email));
+    if (phone) chips.push(withCopy(`<a href="tel:${phone}" class="contact-chip" style="color:#0d6efd"><i class="bi bi-telephone text-muted"></i>${phone}</a>`, phone));
     if (website) {
       const label = website.replace(/^https?:\/\//, '').replace(/\/$/, '');
       chips.push(`<a href="${website}" target="_blank" rel="noopener" class="contact-chip"><i class="bi bi-globe text-muted"></i>${label}</a>`);
     }
     if (marketArea) chips.push(`<span class="contact-chip"><i class="bi bi-map text-muted"></i>${marketArea}</span>`);
     return chips.length ? chips.join('') : '<span class="text-muted small" style="line-height:2.1">No contact info on record.</span>';
+  }
+
+  async function copyContact(value, btn) {
+    try {
+      await navigator.clipboard.writeText(value);
+      const icon = btn.querySelector('i');
+      icon.className = 'bi bi-clipboard-check';
+      btn.style.color = '#198754'; btn.style.opacity = '1';
+      setTimeout(() => { icon.className = 'bi bi-clipboard'; btn.style.color = ''; btn.style.opacity = ''; }, 1500);
+    } catch {}
   }
 
   async function openCompanyDetail(row) {
@@ -800,9 +821,12 @@
         const cp = c.contact_person;
         const ini = (cp.name || '').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase();
         const cpChips = [];
-        if (cp.email)             cpChips.push(`<a href="mailto:${cp.email}" class="contact-chip"><i class="bi bi-envelope text-muted"></i>${cp.email}</a>`);
-        if (cp.phone_number)      cpChips.push(`<span class="contact-chip"><i class="bi bi-telephone text-muted"></i>${cp.phone_number}</span>`);
-        if (cp.cell_phone_number) cpChips.push(`<span class="contact-chip"><i class="bi bi-phone text-muted"></i>${cp.cell_phone_number}</span>`);
+        const cpEsc = v => (v || '').replace(/'/g, '&#39;');
+        const cpChip = (href, icon, text, copy) =>
+          `<span class="d-inline-flex align-items-center gap-1"><a href="${href}" class="contact-chip" style="color:#0d6efd"><i class="bi ${icon} text-muted"></i>${text}</a><button class="btn-copy" onclick="copyContact('${cpEsc(copy)}',this)" title="Copy"><i class="bi bi-clipboard"></i></button></span>`;
+        if (cp.email)             cpChips.push(cpChip(`mailto:${cp.email}`,    'bi-envelope',   cp.email,             cp.email));
+        if (cp.phone_number)      cpChips.push(cpChip(`tel:${cp.phone_number}`, 'bi-telephone', cp.phone_number,      cp.phone_number));
+        if (cp.cell_phone_number) cpChips.push(cpChip(`tel:${cp.cell_phone_number}`, 'bi-phone', cp.cell_phone_number, cp.cell_phone_number));
         document.getElementById('cdContactPersonCard').innerHTML = `
           <div class="cd-person-card" style="background:#f8f9fc;cursor:pointer" onclick="window.location='/people/?open=${cp.id}'">
             <div class="cd-person-avatar">${ini}</div>

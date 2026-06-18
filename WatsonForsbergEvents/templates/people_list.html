@@ -11,7 +11,7 @@
     background: #fff;
     border-radius: 12px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.07);
-    overflow: hidden;
+    overflow-x: auto;
   }
   .people-table thead {
     background: var(--brand);
@@ -144,6 +144,14 @@
     border-radius: 20px; font-size: .82rem; font-weight: 500;
   }
   .selected-badge .btn-close { font-size: .5rem; margin-left: .5rem; }
+
+  .btn-copy {
+    background: none; border: none; padding: .2rem .3rem;
+    border-radius: 6px; cursor: pointer; opacity: .4;
+    font-size: .78rem; line-height: 1; color: #555; flex-shrink: 0;
+    transition: opacity .12s, background .12s, color .12s;
+  }
+  .btn-copy:hover { opacity: 1; background: #eef1fc; }
 </style>
 {% endblock %}
 
@@ -859,6 +867,16 @@
   }
 
   // ── Person Detail Modal ──
+  async function copyContact(value, btn) {
+    try {
+      await navigator.clipboard.writeText(value);
+      const icon = btn.querySelector('i');
+      icon.className = 'bi bi-clipboard-check';
+      btn.style.color = '#198754'; btn.style.opacity = '1';
+      setTimeout(() => { icon.className = 'bi bi-clipboard'; btn.style.color = ''; btn.style.opacity = ''; }, 1500);
+    } catch {}
+  }
+
   const personDetailModal = new bootstrap.Modal(document.getElementById('personDetailModal'));
   let _pdCurrentId = null;
 
@@ -951,10 +969,15 @@
 
     // Contact chip builder (reused for fast + fresh paths)
     function buildContactChips(email, phone, cell, title) {
+      const esc = v => (v || '').replace(/'/g, '&#39;');
+      const chip = (href, icon, text, copy) => {
+        const lnk = `<a href="${href}" class="contact-chip" style="color:#0d6efd"><i class="bi ${icon}"></i>${text}</a>`;
+        return `<span class="d-inline-flex align-items-center gap-1">${lnk}<button class="btn-copy" onclick="copyContact('${esc(copy)}',this)" title="Copy"><i class="bi bi-clipboard"></i></button></span>`;
+      };
       const chips = [];
-      if (email) chips.push(`<a href="mailto:${email}" class="contact-chip" style="color:#0d6efd"><i class="bi bi-envelope"></i>${email}</a>`);
-      if (phone) chips.push(`<a href="tel:${phone}" class="contact-chip" style="color:#0d6efd"><i class="bi bi-telephone"></i>${phone}</a>`);
-      if (cell) chips.push(`<a href="tel:${cell}" class="contact-chip" style="color:#0d6efd"><i class="bi bi-phone"></i>${cell}</a>`);
+      if (email) chips.push(chip(`mailto:${email}`, 'bi-envelope', email, email));
+      if (phone) chips.push(chip(`tel:${phone}`, 'bi-telephone', phone, phone));
+      if (cell)  chips.push(chip(`tel:${cell}`,  'bi-phone',     cell,  cell));
       if (title) chips.push(`<span class="contact-chip"><i class="bi bi-briefcase"></i>${title}</span>`);
       return chips.length ? chips.join('') : '<span class="text-muted small">No contact info on record.</span>';
     }

@@ -653,14 +653,20 @@
             />
           </div>
           <div class="col-md-6">
-            <label class="form-label small fw-semibold"
-              >Date <span class="text-danger">*</span></label
-            >
+            <label class="form-label small fw-semibold">Start Date <span class="text-danger">*</span></label>
             <input id="ecDate" type="date" class="form-control" />
           </div>
           <div class="col-md-6">
-            <label class="form-label small fw-semibold">Time</label>
+            <label class="form-label small fw-semibold">Start Time</label>
             <input id="ecTime" type="time" class="form-control" />
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">End Date <span class="text-muted fw-normal" style="font-size:.78rem">(multi-day)</span></label>
+            <input id="ecEndDate" type="date" class="form-control" />
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">End Time</label>
+            <input id="ecEndTime" type="time" class="form-control" />
           </div>
           <div class="col-md-8">
             <label class="form-label small fw-semibold">Location</label>
@@ -948,14 +954,20 @@
             <input id="eeName" type="text" class="form-control" />
           </div>
           <div class="col-md-6">
-            <label class="form-label small fw-semibold"
-              >Date <span class="text-danger">*</span></label
-            >
+            <label class="form-label small fw-semibold">Start Date <span class="text-danger">*</span></label>
             <input id="eeDate" type="date" class="form-control" />
           </div>
           <div class="col-md-6">
-            <label class="form-label small fw-semibold">Time</label>
+            <label class="form-label small fw-semibold">Start Time</label>
             <input id="eeTime" type="time" class="form-control" />
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">End Date <span class="text-muted fw-normal" style="font-size:.78rem">(multi-day)</span></label>
+            <input id="eeEndDate" type="date" class="form-control" />
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">End Time</label>
+            <input id="eeEndTime" type="time" class="form-control" />
           </div>
           <div class="col-md-8">
             <label class="form-label small fw-semibold">Location</label>
@@ -2088,6 +2100,8 @@
       "ecName",
       "ecDate",
       "ecTime",
+      "ecEndDate",
+      "ecEndTime",
       "ecLocation",
       "ecRegDue",
       "ecTickets",
@@ -2118,6 +2132,8 @@
       name,
       date,
       time: document.getElementById("ecTime").value || null,
+      end_date: document.getElementById("ecEndDate").value || null,
+      end_time: document.getElementById("ecEndTime").value || null,
       location: document.getElementById("ecLocation").value.trim(),
       event_type: document.getElementById("ecEventType").value || "",
       client_id: document.getElementById("ecClientId").value || null,
@@ -2261,6 +2277,8 @@
     document.getElementById("eeName").value = d.name;
     document.getElementById("eeDate").value = d.date;
     document.getElementById("eeTime").value = d.time || "";
+    document.getElementById("eeEndDate").value = d.endDate || "";
+    document.getElementById("eeEndTime").value = d.endTime || "";
     document.getElementById("eeLocation").value = d.location;
     document.getElementById("eeRegDue").value = d.regDue || "";
     document.getElementById("eeTickets").value = d.tickets || "";
@@ -2317,6 +2335,8 @@
       name,
       date,
       time: document.getElementById("eeTime").value || null,
+      end_date: document.getElementById("eeEndDate").value || null,
+      end_time: document.getElementById("eeEndTime").value || null,
       location: document.getElementById("eeLocation").value.trim(),
       event_type: document.getElementById("eeEventType").value || "",
       client_id: document.getElementById("eeClientId").value || null,
@@ -2446,20 +2466,21 @@
     document.getElementById("edBadges").innerHTML = typeBadge + clientBadgeHtml;
 
     // Date / time row
-    const dateFmt = d.date
-      ? new Date(d.date + "T00:00:00").toLocaleDateString("en-US", {
-          weekday: "long",
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-        })
-      : "";
-    let infoHtml = `<span class="d-flex align-items-center gap-1"><i class="bi bi-calendar3 text-muted"></i><strong>${dateFmt}</strong></span>`;
-    if (d.time) {
-      const [h, m] = d.time.split(":");
-      const t = new Date();
-      t.setHours(+h, +m, 0);
-      infoHtml += `<span class="d-flex align-items-center gap-1"><i class="bi bi-clock text-muted"></i>${t.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</span>`;
+    const isMultiDay = d.endDate && d.endDate !== d.date;
+    let dateDisplay;
+    if (isMultiDay) {
+      const s = new Date(d.date + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric" });
+      const e = new Date(d.endDate + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+      dateDisplay = s + " – " + e;
+    } else {
+      dateDisplay = d.date ? new Date(d.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" }) : "";
+    }
+    let infoHtml = `<span class="d-flex align-items-center gap-1"><i class="bi bi-calendar3 text-muted"></i><strong>${dateDisplay}</strong></span>`;
+    if (d.time || d.endTime) {
+      const fmtT = (hhmm) => { const [h, m] = hhmm.split(":"); const t = new Date(); t.setHours(+h, +m, 0); return t.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }); };
+      let timeStr = d.time ? fmtT(d.time) : "";
+      if (d.endTime) timeStr += (timeStr ? " – " : "ends ") + fmtT(d.endTime);
+      infoHtml += `<span class="d-flex align-items-center gap-1"><i class="bi bi-clock text-muted"></i>${timeStr}</span>`;
     }
     document.getElementById("edInfoRow").innerHTML = infoHtml;
 

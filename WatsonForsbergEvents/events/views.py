@@ -27,10 +27,13 @@ def index(request):
         .order_by("date")
     )
 
+    upcoming_q = Q(end_date__gte=today) | Q(end_date__isnull=True, date__gte=today)
+    past_q     = Q(end_date__lt=today)  | Q(end_date__isnull=True, date__lt=today)
+
     type_display = dict(Event.EventType.choices)
     raw_counts = (
         Event.objects
-        .filter(date__gte=today)
+        .filter(upcoming_q)
         .exclude(event_type='')
         .values('event_type')
         .annotate(n=Count('id'))
@@ -42,8 +45,8 @@ def index(request):
     )
 
     return render(request, "event_list.html", {
-        "upcoming_events": events.filter(date__gte=today),
-        "past_events": events.filter(date__lt=today),
+        "upcoming_events": events.filter(upcoming_q).order_by("date"),
+        "past_events": events.filter(past_q).order_by("date"),
         "today": today,
         "google_maps_api_key": settings.GOOGLE_MAPS_API_KEY,
         "upcoming_type_counts": upcoming_type_counts,
@@ -194,6 +197,20 @@ def event_update(request, event_id):
         except ValueError:
             pass
 
+    event.end_date = None
+    if data.get('end_date'):
+        try:
+            event.end_date = datetime.date.fromisoformat(data['end_date'])
+        except ValueError:
+            pass
+
+    event.end_time = None
+    if data.get('end_time'):
+        try:
+            event.end_time = datetime.time.fromisoformat(data['end_time'])
+        except ValueError:
+            pass
+
     from clients.models import Client
     event.client = Client.objects.filter(pk=data['client_id']).first() if data.get('client_id') else None
 
@@ -290,7 +307,8 @@ def metrics_data(request):
 
     events = (
         Event.objects
-        .filter(date__gte=from_date, date__lte=to_date)
+        .filter(date__lte=to_date)
+        .filter(Q(end_date__gte=from_date) | Q(end_date__isnull=True, date__gte=from_date))
         .select_related('client', 'budget')
         .prefetch_related('budget__line_items')
         .annotate(
@@ -333,6 +351,7 @@ def metrics_data(request):
             'id': ev.id,
             'name': ev.name,
             'date': ev.date.isoformat(),
+            'end_date': ev.end_date.isoformat() if ev.end_date else None,
             'client': ev.client.name if ev.client else '',
             'event_type': ev.event_type,
             'event_type_display': ev.get_event_type_display() if ev.event_type else '',
@@ -405,6 +424,20 @@ def event_create(request):
         except ValueError:
             pass
 
+    end_date = None
+    if data.get('end_date'):
+        try:
+            end_date = datetime.date.fromisoformat(data['end_date'])
+        except ValueError:
+            pass
+
+    end_time = None
+    if data.get('end_time'):
+        try:
+            end_time = datetime.time.fromisoformat(data['end_time'])
+        except ValueError:
+            pass
+
     from clients.models import Client
     client = None
     if data.get('client_id'):
@@ -414,6 +447,8 @@ def event_create(request):
         name=name_str,
         date=date,
         time=time,
+        end_date=end_date,
+        end_time=end_time,
         location=data.get('location', ''),
         description=data.get('description', ''),
         notes=data.get('notes', ''),
