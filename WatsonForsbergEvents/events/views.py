@@ -170,6 +170,22 @@ def event_guest_update(request, event_id, person_id):
     guest.save()
     return JsonResponse({'ok': True})
 
+
+def get_access_token():
+    URL = "https://login.microsoftonline.com/REDACTED_TENANT_ID/oauth2/v2.0/token"
+    data = {
+        "grant_type": "client_credentials",
+        "client_id": settings.MICROSOFT_CALENDAR_API_CLIENT_ID,
+        "client_secret": settings.MICROSOFT_CALENDAR_API_CLIENT_SECRET,
+        "scope": "https://graph.microsoft.com/.default",
+    }
+    response = requests.post(URL, data=data)
+    if response.status_code == 200:
+        return response.json().get('access_token')
+    return None
+
+
+
 @login_required
 @require_GET
 def add_to_calendar(request, event_id):
@@ -221,8 +237,11 @@ def add_to_calendar(request, event_id):
             "content": event.description or ""
         }
     }
+    token = get_access_token()
+    if not token:
+        return JsonResponse({'error': 'Could not obtain Microsoft access token'}, status=502)
     headers = {
-        "Authorization": f"Bearer {settings.MICROSOFT_CALENDAR_API_TOKEN}",
+        "Authorization": f"Bearer {token}",
         "Content-Type": "application/json"
     }
     response = requests.post(URL, headers=headers, json=data)
@@ -247,8 +266,11 @@ def add_guests_to_calendar(request, event_id):
     )
 
     BASE_URL = "https://graph.microsoft.com/v1.0/users/REDACTED_CALENDAR_USER/events"
+    token = get_access_token()
+    if not token:
+        return JsonResponse({'error': 'Could not obtain Microsoft access token'}, status=502)
     headers = {
-        "Authorization": f"Bearer {settings.MICROSOFT_CALENDAR_API_TOKEN}",
+        "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
     }
 
