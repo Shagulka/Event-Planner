@@ -15,4 +15,6 @@ urlpatterns = [
     path("<int:event_id>/guests/<int:person_id>/update/", views.event_guest_update, name="event_guest_update"),
     path("<int:event_id>/budget/", views.event_budget, name="event_budget"),
     path("<int:event_id>/budget/save/", views.event_budget_save, name="event_budget_save"),
+    path("<int:event_id>/calendar/add/", views.add_to_calendar, name="event_add_to_calendar"),
+    path("<int:event_id>/calendar/invite/", views.add_guests_to_calendar, name="event_add_guests_to_calendar"),
 ]

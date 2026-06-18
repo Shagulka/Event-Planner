@@ -23,6 +23,7 @@ class EventGuest(models.Model):
     able_to_come = models.BooleanField(default=False)
     registered = models.BooleanField(default=False)
     attended = models.BooleanField(default=False)
+    added_on_calendar = models.BooleanField(default=False)
 
     class Meta:
         unique_together = ('event', 'person')
@@ -104,6 +105,7 @@ class Event(models.Model):
         OTHER      = 'OTHER',      'Other'
 
     event_type = models.CharField(max_length=20, choices=EventType.choices, blank=True, default='')
+    calendar_event_id = models.CharField(max_length=500, blank=True)
 
     @property
     def total_budget_proposed(self):

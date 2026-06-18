@@ -80,7 +80,8 @@
                 data-updated-at="{{ event.updated_at|date:'Y-m-d' }}"
                 data-event-type="{{ event.event_type }}"
                 data-bud-total-p="{{ event.total_budget_proposed|default:'' }}"
-                data-bud-total-a="{{ event.total_budget_actual|default:'' }}">
+                data-bud-total-a="{{ event.total_budget_actual|default:'' }}"
+                data-calendar-event-id="{{ event.calendar_event_id }}"
           <i class="bi bi-pencil me-1"></i>Edit
         </button>
       </div>

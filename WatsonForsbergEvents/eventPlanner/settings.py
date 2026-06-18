@@ -36,6 +36,8 @@ MICROSOFT_SSO_SCOPE = ['User.Read.All']
 
 MICROSOFT_SSO_ALLOWABLE_DOMAINS = ["topconconsulting.com", "watson-forsberg.com"]
 
+MICROSOFT_CALENDAR_API_TOKEN = os.environ['MICROSOFT_CALENDAR_API_TOKEN']
+
 LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/events/'
 

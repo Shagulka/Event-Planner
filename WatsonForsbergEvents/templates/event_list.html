@@ -369,6 +369,12 @@
         <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">
           Close
         </button>
+        <span id="edCalendarStatus" class="d-none small fw-semibold" style="color:#198754">
+          <i class="bi bi-calendar-check me-1"></i>On Katya's calendar
+        </span>
+        <button class="btn btn-sm btn-outline btn-guests" id="edCalendarBtn">
+          <i class="bi bi-calendar-plus me-1"></i>Add to Katya's Calendar
+        </button>
         <button class="btn btn-sm btn-outline btn-guests" id="edGuestsBtn">
           <i class="bi bi-people-fill me-1"></i>Guests
         </button>
@@ -507,6 +513,14 @@
         >
           <i class="bi bi-tablet me-1"></i>Registration Mode
         </a>
+        <button
+          id="calendarInviteBtn"
+          class="btn btn-sm fw-semibold text-white"
+          style="background: var(--brand); border-radius: 20px"
+          onclick="sendCalendarInvites()"
+        >
+          <i class="bi bi-calendar-plus me-1"></i>Send Coming Guests a Calendar Invitation
+        </button>
         <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">
           Close
         </button>
@@ -1570,6 +1584,7 @@
       <div class="d-flex align-items-center gap-2">
         <div class="guest-avatar">${initials(g.name)}</div>
         <span class="fw-semibold">${g.name}</span>
+        ${g.added_on_calendar ? '<i class="bi bi-calendar-check text-success ms-1" title="Calendar invitation sent"></i>' : ''}
       </div>
     </td>
     <td>
@@ -1743,6 +1758,33 @@
         badge.remove();
       }
     }
+  }
+
+  async function sendCalendarInvites() {
+    const btn = document.getElementById("calendarInviteBtn");
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sending…';
+    try {
+      const res = await postJSON(`/events/${currentEventId}/calendar/invite/`, {});
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        const n = data.added ?? 0;
+        btn.innerHTML = `<i class="bi bi-check-lg me-1"></i>${n} sent!`;
+        btn.style.background = "#198754";
+        await reloadGuests();
+      } else {
+        btn.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>' + (data.error || 'Failed');
+        btn.style.background = "#dc3545";
+      }
+    } catch {
+      btn.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>Failed';
+      btn.style.background = "#dc3545";
+    }
+    setTimeout(() => {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-calendar-plus me-1"></i>Send Coming Guests a Calendar Invitation';
+      btn.style.background = "var(--brand)";
+    }, 4000);
   }
 
   async function removeGuest(personId) {
@@ -2688,9 +2730,37 @@
       auditEl.classList.add("d-none");
     }
 
-    // Guests / Edit buttons in footer
+    // Guests / Edit / Calendar buttons in footer
     const evId = d.id,
       evName = d.name;
+    const calStatus = document.getElementById("edCalendarStatus");
+    calStatus.classList.toggle("d-none", !d.calendarEventId);
+
+    document.getElementById("edCalendarBtn").onclick = async () => {
+      const btn = document.getElementById("edCalendarBtn");
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Adding…';
+      try {
+        const res = await fetch(`/events/${evId}/calendar/add/`);
+        const data = await res.json();
+        if (res.ok && data.ok) {
+          btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Added!';
+          btn.classList.add("text-success");
+          document.getElementById("edCalendarStatus").classList.remove("d-none");
+        } else {
+          btn.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>Failed';
+          btn.classList.add("text-danger");
+        }
+      } catch {
+        btn.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>Failed';
+        btn.classList.add("text-danger");
+      }
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-calendar-plus me-1"></i>Add to Katya\'s Calendar';
+        btn.classList.remove("text-success", "text-danger");
+      }, 3000);
+    };
     document.getElementById("edGuestsBtn").onclick = () => {
       eventDetailModal.hide();
       openGuests(evId, evName);

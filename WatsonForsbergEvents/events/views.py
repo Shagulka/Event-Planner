@@ -6,6 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_GET, require_POST
 from django.conf import settings
 from django.db.models import Count, Q
+import requests
 from .models import Event, EventGuest, EventBudget, BudgetLineItem, BUDGET_CATEGORIES
 from people.models import Person
 
@@ -77,6 +78,7 @@ def event_guests(request, event_id):
             "able_to_come": g.able_to_come,
             "registered": g.registered,
             "attended": g.attended,
+            "added_on_calendar": g.added_on_calendar,
         }
         for g in guests
     ]
@@ -168,6 +170,132 @@ def event_guest_update(request, event_id, person_id):
     guest.save()
     return JsonResponse({'ok': True})
 
+@login_required
+@require_GET
+def add_to_calendar(request, event_id):
+    URL = "https://graph.microsoft.com/v1.0/users/REDACTED_CALENDAR_USER/events"
+    event = get_object_or_404(Event, pk=event_id)
+    # No start/end time is all day - free
+    # Only start time accross multiple days - free (ending the end day at 11:59pm)
+    # Start and end time on same day - busy
+    # Only start time on single day - busy (defaulting to 1 hour if no end time)
+    is_all_day = not event.time
+    is_multiple_day = bool(event.end_date and event.end_date != event.date)
+
+    if is_all_day:
+        # All-day: Graph end is exclusive, so add 1 day
+        start_dt = event.date.isoformat() + "T00:00:00"
+        end_dt = ((event.end_date or event.date) + datetime.timedelta(days=1)).isoformat() + "T00:00:00"
+    elif is_multiple_day:
+        # Has start time, spans multiple days — free, end at 11:59pm of last day if no end_time
+        start_dt = event.date.isoformat() + "T" + event.time.isoformat()
+        if event.end_time:
+            end_dt = event.end_date.isoformat() + "T" + event.end_time.isoformat()
+        else:
+            end_dt = event.end_date.isoformat() + "T23:59:00"
+    else:
+        # Single day with time — busy, default 1 hour if no end_time
+        start_dt = event.date.isoformat() + "T" + event.time.isoformat()
+        if event.end_time:
+            end_dt = (event.end_date or event.date).isoformat() + "T" + event.end_time.isoformat()
+        else:
+            end_dt = (datetime.datetime.combine(event.date, event.time) + datetime.timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%S")
+
+    data = {
+        "subject": event.name,
+        "showAs": "free" if is_all_day or is_multiple_day else "busy",
+        "isAllDay": is_all_day,
+        "start": {
+            "dateTime": start_dt,
+            "timeZone": "Central Standard Time"
+        },
+        "end": {
+            "dateTime": end_dt,
+            "timeZone": "Central Standard Time"
+        },
+        "location": {
+            "displayName": event.location
+        },
+        "body": {
+            "contentType": "HTML",
+            "content": event.description or ""
+        }
+    }
+    headers = {
+        "Authorization": f"Bearer {settings.MICROSOFT_CALENDAR_API_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    response = requests.post(URL, headers=headers, json=data)
+    if response.status_code == 201:
+        graph_id = response.json().get('id', '')
+        if graph_id:
+            event.calendar_event_id = graph_id
+            event.save(update_fields=['calendar_event_id'])
+        return JsonResponse({'ok': True})
+    else:
+        return JsonResponse({'error': 'Failed to add to calendar'}, status=500)
+
+
+@login_required
+@require_POST
+def add_guests_to_calendar(request, event_id):
+    event = get_object_or_404(Event, pk=event_id)
+    pending_guests = (
+        EventGuest.objects
+        .filter(event=event, able_to_come=True, added_on_calendar=False)
+        .select_related('person')
+    )
+
+    BASE_URL = "https://graph.microsoft.com/v1.0/users/REDACTED_CALENDAR_USER/events"
+    headers = {
+        "Authorization": f"Bearer {settings.MICROSOFT_CALENDAR_API_TOKEN}",
+        "Content-Type": "application/json",
+    }
+
+    # Resolve the Graph calendar event ID
+    graph_event_id = event.calendar_event_id
+    if not graph_event_id:
+        res = requests.get(BASE_URL, headers=headers)
+        if res.status_code == 200:
+            for ev in res.json().get('value', []):
+                if ev.get('subject') == event.name:
+                    graph_event_id = ev['id']
+                    break
+    if not graph_event_id:
+        return JsonResponse({'error': 'Calendar event not found — add the event to the calendar first'}, status=404)
+
+    event_url = f"{BASE_URL}/{graph_event_id}"
+
+    # Fetch existing attendees so we don't clobber them
+    res = requests.get(event_url, headers=headers)
+    existing_attendees = res.json().get('attendees', []) if res.status_code == 200 else []
+    existing_emails = {a['emailAddress']['address'].lower() for a in existing_attendees}
+
+    new_attendees = []
+    guests_to_mark = []
+    for guest in pending_guests:
+        if guest.person.email and guest.person.email.lower() not in existing_emails:
+            new_attendees.append({
+                "emailAddress": {"address": guest.person.email, "name": guest.person.name},
+                "type": "required",
+            })
+            existing_emails.add(guest.person.email.lower())
+        guests_to_mark.append(guest)
+
+    if new_attendees:
+        patch_res = requests.patch(
+            event_url,
+            headers=headers,
+            json={"attendees": existing_attendees + new_attendees},
+        )
+        if patch_res.status_code not in (200, 204):
+            return JsonResponse({'error': 'Failed to update calendar attendees'}, status=500)
+
+    # Mark all coming guests as added (even those already on calendar)
+    ids = [g.id for g in guests_to_mark]
+    EventGuest.objects.filter(id__in=ids).update(added_on_calendar=True)
+
+    return JsonResponse({'ok': True, 'added': len(new_attendees)})
 
 @login_required
 @require_POST
