@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}My Events — Watson Forsberg{% endblock %}
+{% block nav_active_my_events %}active{% endblock %}
+{% block extra_css %}
+{% include "partials/event_css.html" %}
+{% endblock %}
+{% block hero %}
+<div class="page-hero">
+  <div class="container">
+    <h1><i class="bi bi-person-lines-fill me-2"></i>My Events</h1>
+    <p class="mb-0">
+      {% if person %}Events you're listed on as <strong>{{ person.name }}</strong>{% endif %}
+    </p>
+  </div>
+</div>
+{% endblock %}
+{% block content %}
+<div class="container py-4">
+
+{% if no_profile %}
+  <div class="empty-state">
+    <i class="bi bi-person-x"></i>
+    Your account isn't linked to anyone in the staff directory.<br>
+    <span class="small text-muted">An admin can link your account, or make sure your login email matches your directory entry.</span>
+  </div>
+
+{% else %}
+
+  <!-- ── Upcoming ── -->
+  <p class="section-label mb-3">Upcoming Events</p>
+  {% if upcoming_events %}
+  <div class="row g-3 mb-5">
+    {% for event in upcoming_events %}{% include "partials/event_card.html" with upcoming=True %}{% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state mb-5">
+    <i class="bi bi-calendar-x"></i>No upcoming events you're listed on.
+  </div>
+  {% endif %}
+
+  <!-- ── Past ── -->
+  <p class="section-label mb-3">Past Events</p>
+  {% if past_events %}
+  <div class="row g-3 mb-5">
+    {% for event in past_events reversed %}{% include "partials/event_card.html" with upcoming=False %}{% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state mb-5">
+    <i class="bi bi-calendar-check"></i>No past events on record.
+  </div>
+  {% endif %}
+
+{% endif %}
+</div>
+
+{% include "partials/event_modals.html" %}
+{% endblock %}
+{% block extra_js %}
+{% include "partials/event_js.html" %}
+{% endblock %}

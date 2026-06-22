@@ -1,0 +1,1546 @@
+<script>
+  // ══ CSRF helper ══
+  function getCsrf() {
+    const m = document.cookie.match(/csrftoken=([^;]+)/);
+    return m ? m[1] : "";
+  }
+
+  function postJSON(url, body) {
+    return fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrf() },
+      body: JSON.stringify(body),
+    });
+  }
+
+  // ══ Budget line-item helpers ══
+  const BUDGET_CAT_META = {
+    materials: { label: "Materials", icon: "bi-box-seam" },
+    venue: { label: "Venue", icon: "bi-building" },
+    swag: { label: "Swag", icon: "bi-gift" },
+    tickets: { label: "Tickets", icon: "bi-ticket-perforated" },
+    donations: { label: "Donations", icon: "bi-heart" },
+    travel: { label: "Travel", icon: "bi-airplane" },
+    sponsorships: { label: "Sponsorships", icon: "bi-award" },
+    misc: { label: "Misc", icon: "bi-three-dots" },
+  };
+
+  // keyed by modal prefix ('ec' or 'ee')
+  const budgetItems = { ec: [], ee: [] };
+  const budgetExpanded = { ec: {}, ee: {} };
+
+  function fmtMoney(n) {
+    return n > 0
+      ? "$" +
+          n.toLocaleString("en-US", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })
+      : "—";
+  }
+
+  function renderBudgetItems(prefix) {
+    const items = budgetItems[prefix];
+    const tbody = document.getElementById(prefix + "BudBody");
+    if (!items.length) {
+      tbody.innerHTML =
+        '<tr><td colspan="5" class="text-center text-muted py-2 small">No items yet — add one below</td></tr>';
+      _updateBudgetTotals(prefix);
+      return;
+    }
+    const catOrder = [
+      "materials",
+      "venue",
+      "swag",
+      "tickets",
+      "donations",
+      "travel",
+      "sponsorships",
+      "misc",
+    ];
+    const grouped = {};
+    items.forEach((item, idx) => {
+      if (!grouped[item.category]) grouped[item.category] = [];
+      grouped[item.category].push({ idx, item });
+    });
+    const orderedCats = catOrder
+      .filter((c) => grouped[c])
+      .concat(Object.keys(grouped).filter((c) => !catOrder.includes(c)));
+    let html = "";
+    orderedCats.forEach((cat) => {
+      const entries = grouped[cat];
+      const m = BUDGET_CAT_META[cat] || { label: cat, icon: "bi-tag" };
+      const catP = entries.reduce((s, { item }) => s + (item.proposed || 0), 0);
+      const catA = entries.reduce((s, { item }) => s + (item.actual || 0), 0);
+      const isExp = !!budgetExpanded[prefix][cat];
+      html += `<tr style="background:#f0f3fc;cursor:pointer" onclick="toggleBudgetCategory('${prefix}','${cat}')">
+        <td class="px-3 py-1" colspan="2" style="font-size:.82rem">
+          <span class="fw-semibold"><i class="bi ${m.icon} me-1" style="color:var(--brand)"></i>${m.label}</span>
+          <span class="ms-2 text-muted" style="font-size:.78rem">${entries.length} item${entries.length !== 1 ? "s" : ""}</span>
+          <i class="bi bi-chevron-right ms-2" id="bud-hdr-chev-${prefix}-${cat}" style="font-size:.75rem;transition:transform .2s${isExp ? ";transform:rotate(90deg)" : ""}"></i>
+        </td>
+        <td class="px-3 py-1 text-end fw-semibold" style="font-size:.82rem">${catP ? fmtMoney(catP) : "—"}</td>
+        <td class="px-3 py-1 text-end fw-semibold" style="font-size:.82rem">${catA ? fmtMoney(catA) : "—"}</td>
+        <td></td>
+      </tr>`;
+      entries.forEach(({ idx, item }) => {
+        html += `<tr class="bud-item-${prefix}-${cat}" style="display:${isExp ? "" : "none"}">
+          <td class="px-3 py-1" style="font-size:.82rem"></td>
+          <td class="p-1">
+            <input type="text" class="form-control form-control-sm" value="${item.name.replace(/"/g, "&quot;")}"
+                   oninput="updateBudgetItem('${prefix}', ${idx}, 'name', this.value)" />
+          </td>
+          <td class="p-1">
+            <input type="number" class="form-control form-control-sm text-end"
+                   value="${item.proposed != null ? item.proposed : ""}"
+                   min="0" step="0.01" placeholder="0.00"
+                   oninput="updateBudgetItem('${prefix}', ${idx}, 'proposed', this.value)" />
+          </td>
+          <td class="p-1">
+            <input type="number" class="form-control form-control-sm text-end"
+                   value="${item.actual != null ? item.actual : ""}"
+                   min="0" step="0.01" placeholder="0.00"
+                   oninput="updateBudgetItem('${prefix}', ${idx}, 'actual', this.value)" />
+          </td>
+          <td class="p-1 text-center">
+            <button type="button" class="btn btn-link btn-sm text-danger p-0"
+                    onclick="removeBudgetRow('${prefix}', ${idx})" title="Remove">
+              <i class="bi bi-trash3"></i>
+            </button>
+          </td>
+        </tr>`;
+      });
+    });
+    tbody.innerHTML = html;
+    _updateBudgetTotals(prefix);
+  }
+
+  function updateBudgetItem(prefix, idx, field, value) {
+    const item = budgetItems[prefix][idx];
+    if (!item) return;
+    if (field === "name") {
+      item.name = value;
+    } else if (field === "proposed") {
+      item.proposed = parseFloat(value) || null;
+      _updateBudgetTotals(prefix);
+    } else if (field === "actual") {
+      item.actual = parseFloat(value) || null;
+      _updateBudgetTotals(prefix);
+    }
+  }
+
+  function setBudgetActualToProposed(prefix) {
+    budgetItems[prefix].forEach((item) => {
+      if (item.actual == null) item.actual = item.proposed;
+    });
+    renderBudgetItems(prefix);
+  }
+
+  function toggleBudgetCategory(prefix, cat) {
+    budgetExpanded[prefix][cat] = !budgetExpanded[prefix][cat];
+    const isExp = budgetExpanded[prefix][cat];
+    document.querySelectorAll(`.bud-item-${prefix}-${cat}`).forEach((r) => {
+      r.style.display = isExp ? "" : "none";
+    });
+    const chev = document.getElementById(`bud-hdr-chev-${prefix}-${cat}`);
+    if (chev) chev.style.transform = isExp ? "rotate(90deg)" : "";
+  }
+
+  function toggleDetailBudgetCat(cat) {
+    const rows = document.querySelectorAll(`.detail-bud-${cat}`);
+    const chev = document.getElementById(`detail-bud-chev-${cat}`);
+    const isHidden = rows.length > 0 && rows[0].style.display === "none";
+    rows.forEach((r) => {
+      r.style.display = isHidden ? "" : "none";
+    });
+    if (chev) chev.style.transform = isHidden ? "rotate(90deg)" : "";
+  }
+
+  function _updateBudgetTotals(prefix) {
+    const items = budgetItems[prefix];
+    let tp = 0,
+      ta = 0;
+    items.forEach((item) => {
+      tp += item.proposed || 0;
+      ta += item.actual || 0;
+    });
+    document.getElementById(prefix + "BudTotalP").textContent = fmtMoney(tp);
+    document.getElementById(prefix + "BudTotalA").textContent = fmtMoney(ta);
+  }
+
+  function addBudgetRow(prefix) {
+    const cat = document.getElementById(prefix + "BudCat").value;
+    const name = document.getElementById(prefix + "BudName").value.trim();
+    if (!cat || !name) {
+      alert("Please select a category and enter an item name.");
+      return;
+    }
+    const proposed =
+      parseFloat(document.getElementById(prefix + "BudNewP").value) || null;
+    const actual =
+      parseFloat(document.getElementById(prefix + "BudNewA").value) || null;
+    budgetItems[prefix].push({ category: cat, name, proposed, actual });
+    budgetExpanded[prefix][cat] = true;
+    renderBudgetItems(prefix);
+    document.getElementById(prefix + "BudCat").value = "";
+    document.getElementById(prefix + "BudName").value = "";
+    document.getElementById(prefix + "BudNewP").value = "";
+    document.getElementById(prefix + "BudNewA").value = "";
+  }
+
+  function removeBudgetRow(prefix, idx) {
+    budgetItems[prefix].splice(idx, 1);
+    renderBudgetItems(prefix);
+  }
+
+  function clearBudgetItems(prefix) {
+    budgetItems[prefix] = [];
+    budgetExpanded[prefix] = {};
+    renderBudgetItems(prefix);
+  }
+
+  async function loadEventBudget(eventId, prefix) {
+    try {
+      const res = await fetch(`/events/${eventId}/budget/`);
+      const data = await res.json();
+      budgetItems[prefix] = data.line_items.map((li) => ({
+        category: li.category,
+        name: li.name,
+        proposed: li.proposed_amount,
+        actual: li.actual_amount,
+      }));
+    } catch {
+      budgetItems[prefix] = [];
+    }
+    renderBudgetItems(prefix);
+  }
+
+  function getBudgetLineItems(prefix) {
+    return budgetItems[prefix].map((item) => ({
+      category: item.category,
+      name: item.name,
+      proposed_amount: item.proposed,
+      actual_amount: item.actual,
+    }));
+  }
+
+  // ══ Event card search + type filter ══
+  const EVENT_TYPE_META = {
+    CONFERENCE: { label: "Conference", color: "#3b5bdb" },
+    MEETING: { label: "Meeting", color: "#0ca678" },
+    PARTY: { label: "Party", color: "#7c3aed" },
+    FUNDRAISER: { label: "Fundraiser", color: "#e67700" },
+    DONATION: { label: "Donation", color: "#d63384" },
+    AWARDS: { label: "Awards", color: "#663401" },
+    OTHER: { label: "Other", color: "#6c757d" },
+  };
+
+  function applyEventFilters() {
+    const q = document.getElementById("searchInput").value.toLowerCase().trim();
+    const type = document.getElementById("typeFilter").value;
+    document.querySelectorAll(".event-item").forEach((el) => {
+      const matchText = !q || el.textContent.toLowerCase().includes(q);
+      const matchType = !type || el.dataset.eventType === type;
+      el.style.display = matchText && matchType ? "" : "none";
+    });
+  }
+
+  if (document.getElementById("searchInput")) {
+    document.getElementById("searchInput").addEventListener("input", applyEventFilters);
+    document.getElementById("typeFilter").addEventListener("change", applyEventFilters);
+  }
+
+  // ══════════════════════════════════════════
+  //  GUEST MODAL
+  // ══════════════════════════════════════════
+  let currentEventId = null;
+  let allGuests = [];
+  const guestModal = new bootstrap.Modal(document.getElementById("guestModal"));
+
+  function initials(name) {
+    return (name || "?")
+      .split(" ")
+      .map((p) => p[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase();
+  }
+
+  function buildSummary(guests) {
+    const t = guests.length,
+      inv = guests.filter((g) => g.invited).length,
+      com = guests.filter((g) => g.able_to_come).length,
+      reg = guests.filter((g) => g.registered).length,
+      att = guests.filter((g) => g.attended).length;
+    document.getElementById("guestSummary").innerHTML = [
+      [
+        "bi-people",
+        "Total",
+        t,
+        "bg-primary-subtle text-primary border-primary-subtle",
+      ],
+      [
+        "bi-envelope-check",
+        "Invited",
+        inv,
+        "bg-info-subtle text-info border-info-subtle",
+      ],
+      [
+        "bi-hand-thumbs-up-fill",
+        "Coming",
+        com,
+        "bg-success-subtle text-success border-success-subtle",
+      ],
+      [
+        "bi-pencil-square",
+        "Registered",
+        reg,
+        "bg-warning-subtle text-warning border-warning-subtle",
+      ],
+      [
+        "bi-person-check-fill",
+        "Attended",
+        att,
+        "bg-success-subtle text-success border-success-subtle",
+      ],
+    ]
+      .map(
+        ([ic, lb, ct, cls]) =>
+          `<span class="badge border rounded-pill px-3 py-2 ${cls}" style="font-size:.78rem;">
+         <i class="bi ${ic} me-1"></i>${lb}: <strong>${ct}</strong>
+       </span>`,
+      )
+      .join("");
+  }
+
+  function statusBtn(personId, field, value) {
+    const on = value ? "status-on" : "status-off";
+    const ico = value ? "bi-check-circle-fill" : "bi-circle";
+    return `<button class="status-btn ${on}" data-pid="${personId}" data-field="${field}"
+                onclick="toggleStatus(this)" title="${field}">
+          <i class="bi ${ico}"></i>
+        </button>`;
+  }
+
+  function renderGuests(guests) {
+    const wrap = document.getElementById("guestTableWrap");
+    const empty = document.getElementById("guestEmpty");
+    const count = document.getElementById("guestCount");
+    if (!guests.length) {
+      wrap.classList.add("d-none");
+      empty.classList.remove("d-none");
+      count.textContent = "";
+      return;
+    }
+    empty.classList.add("d-none");
+    wrap.classList.remove("d-none");
+    count.textContent = `Showing ${guests.length} guest${guests.length !== 1 ? "s" : ""}`;
+
+    document.getElementById("guestTableBody").innerHTML = guests
+      .map(
+        (g) => `
+  <tr class="guest-row" data-pid="${g.person_id}">
+    <td>
+      <div class="d-flex align-items-center gap-2">
+        <div class="guest-avatar">${initials(g.name)}</div>
+        <span class="fw-semibold">${g.name}</span>
+        ${g.added_on_calendar ? '<i class="bi bi-calendar-check text-success ms-1" title="Calendar invitation sent"></i>' : ''}
+      </div>
+    </td>
+    <td>
+      ${g.email ? `<a href="mailto:${g.email}" class="d-block text-decoration-none small"><i class="bi bi-envelope me-1 text-muted"></i>${g.email}</a>` : ""}
+      ${g.phone ? `<span class="d-block small text-muted"><i class="bi bi-telephone me-1"></i>${g.phone}</span>` : ""}
+    </td>
+    <td>
+      ${g.company ? `<span class="fw-semibold small">${g.company}</span>` : ""}
+      ${g.title ? `<br><span class="text-muted small">${g.title}</span>` : ""}
+    </td>
+    <td class="text-center">${statusBtn(g.person_id, "invited", g.invited)}</td>
+    <td class="text-center">${statusBtn(g.person_id, "able_to_come", g.able_to_come)}</td>
+    <td class="text-center">${statusBtn(g.person_id, "registered", g.registered)}</td>
+    <td class="text-center">${statusBtn(g.person_id, "attended", g.attended)}</td>
+    <td
+      <button class="btn btn-link btn-sm text-danger p-0" title="Remove guest"
+              onclick="removeGuest(${g.person_id})">
+        <i class="bi bi-trash3"></i>
+      </button>
+    </td>
+  </tr>`,
+      )
+      .join("");
+  }
+
+  async function openGuests(eventId, eventName) {
+    currentEventId = eventId;
+    document.getElementById("registrationModeBtn").href =
+      `/events/${eventId}/registration/`;
+    document.getElementById("guestModalTitle").textContent = eventName;
+    document.getElementById("guestModalSubtitle").textContent = "";
+    document.getElementById("guestSummary").innerHTML = "";
+    document.getElementById("guestTableBody").innerHTML = "";
+    document.getElementById("guestFilter").value = "";
+    document.getElementById("personSearch").value = "";
+    document.getElementById("personDropdown").classList.remove("show");
+    document.getElementById("guestCount").textContent = "";
+    document.getElementById("guestLoading").classList.remove("d-none");
+    document.getElementById("guestTableWrap").classList.add("d-none");
+    document.getElementById("guestEmpty").classList.add("d-none");
+    document.getElementById("recommendedSection").classList.add("d-none");
+    document.getElementById("recommendedList").innerHTML = "";
+    guestModal.show();
+    await reloadGuests();
+    loadRecommended();
+  }
+
+  async function loadRecommended() {
+    try {
+      const res = await fetch(`/people/${currentEventId}/recommended/`);
+      const people = await res.json();
+      const section = document.getElementById("recommendedSection");
+      const list = document.getElementById("recommendedList");
+
+      // Filter out people already on guest list
+      const recommended = people.filter(
+        (p) => !allGuests.find((g) => g.person_id == p.id),
+      );
+
+      if (!recommended.length) {
+        section.classList.add("d-none");
+        return;
+      }
+      list.innerHTML = recommended
+        .map(
+          (p) => `
+        <button type="button"
+                class="btn btn-sm border fw-semibold text-start recommended-chip"
+                style="background:#fff;border-color:#c9d4f5!important;border-radius:20px;max-width:260px"
+                data-person-id="${p.id}" data-person-name="${p.name.replace(/"/g, "&quot;")}">
+          <span class="d-block" style="font-size:.82rem">${p.name}</span>
+          ${
+            p.title || p.company
+              ? `<span class="text-muted" style="font-size:.72rem">${[p.title, p.company].filter(Boolean).join(" · ")}</span>`
+              : ""
+          }
+        </button>`,
+        )
+        .join("");
+      section.classList.remove("d-none");
+
+      // Add event listeners to recommended chips
+      list.querySelectorAll(".recommended-chip").forEach((btn) => {
+        btn.addEventListener("click", () =>
+          addRecommended(btn.dataset.personId, btn.dataset.personName, btn),
+        );
+      });
+    } catch {
+      /* recommendations are non-critical */
+    }
+  }
+
+  async function addRecommended(personId, name, btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span>`;
+    await addExistingGuest(parseInt(personId), name);
+    // remove chip since person is now on the list
+    btn.closest(".recommended-chip")?.remove();
+    if (!document.querySelectorAll(".recommended-chip").length) {
+      document.getElementById("recommendedSection").classList.add("d-none");
+    }
+  }
+
+  async function reloadGuests() {
+    document.getElementById("guestLoading").classList.remove("d-none");
+    document.getElementById("guestTableWrap").classList.add("d-none");
+    try {
+      const res = await fetch(`/events/${currentEventId}/guests/`);
+      const data = await res.json();
+      allGuests = data.guests;
+      document.getElementById("guestLoading").classList.add("d-none");
+      document.getElementById("guestModalSubtitle").textContent =
+        `${allGuests.length} guest${allGuests.length !== 1 ? "s" : ""} on record`;
+      buildSummary(allGuests);
+      renderGuests(applyGuestFilter(allGuests));
+    } catch {
+      document.getElementById("guestLoading").classList.add("d-none");
+      document.getElementById("guestEmpty").innerHTML =
+        '<i class="bi bi-exclamation-triangle"></i> Failed to load guests.';
+      document.getElementById("guestEmpty").classList.remove("d-none");
+    }
+  }
+
+  function applyGuestFilter(guests) {
+    const q = document.getElementById("guestFilter").value.toLowerCase().trim();
+    return q
+      ? guests.filter((g) =>
+          [g.name, g.company, g.title, g.email].some(
+            (f) => f && f.toLowerCase().includes(q),
+          ),
+        )
+      : guests;
+  }
+
+  document.getElementById("guestFilter").addEventListener("input", () => {
+    renderGuests(applyGuestFilter(allGuests));
+  });
+
+  async function toggleStatus(btn) {
+    const personId = btn.dataset.pid;
+    const field = btn.dataset.field;
+    const guest = allGuests.find((g) => g.person_id == personId);
+    if (!guest) return;
+    const newVal = !guest[field];
+    guest[field] = newVal;
+    btn.className = `status-btn ${newVal ? "status-on" : "status-off"}`;
+    btn.innerHTML = `<i class="bi ${newVal ? "bi-check-circle-fill" : "bi-circle"}"></i>`;
+    await postJSON(`/events/${currentEventId}/guests/${personId}/update/`, {
+      [field]: newVal,
+    });
+    buildSummary(allGuests);
+
+    // Update the event card's uninvited count in real-time
+    const uninvitedCount = allGuests.filter((g) => !g.invited).length;
+    const eventCard = document
+      .querySelector(`.event-item [data-id="${currentEventId}"]`)
+      ?.closest(".event-card");
+    if (eventCard) {
+      const headerDiv = eventCard.querySelector(".card-header > div");
+      const badge = headerDiv?.querySelector(".badge");
+      if (uninvitedCount > 0) {
+        if (!badge && headerDiv) {
+          const badgeHtml = `<span class="badge rounded-pill mt-1" style="background:#e8a020;color:#fff;font-size:.65rem">
+            <i class="bi bi-clock me-1"></i>${uninvitedCount} not invited
+          </span>`;
+          headerDiv.insertAdjacentHTML("beforeend", badgeHtml);
+        } else if (badge) {
+          badge.innerHTML = `<i class="bi bi-clock me-1"></i>${uninvitedCount} not invited`;
+        }
+      } else if (badge) {
+        badge.remove();
+      }
+    }
+  }
+
+  async function sendCalendarInvites() {
+    const btn = document.getElementById("calendarInviteBtn");
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sending…';
+    try {
+      const res = await postJSON(`/events/${currentEventId}/calendar/invite/`, {});
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        const n = data.added ?? 0;
+        btn.innerHTML = `<i class="bi bi-check-lg me-1"></i>${n} sent!`;
+        btn.style.background = "#198754";
+        await reloadGuests();
+      } else {
+        btn.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>' + (data.error || 'Failed');
+        btn.style.background = "#dc3545";
+      }
+    } catch {
+      btn.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>Failed';
+      btn.style.background = "#dc3545";
+    }
+    setTimeout(() => {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-calendar-plus me-1"></i>Send Coming Guests a Calendar Invitation';
+      btn.style.background = "var(--brand)";
+    }, 4000);
+  }
+
+  async function removeGuest(personId) {
+    if (!confirm("Remove this guest from the event?")) return;
+    await postJSON(`/events/${currentEventId}/guests/${personId}/remove/`, {});
+    allGuests = allGuests.filter((g) => g.person_id !== personId);
+    buildSummary(allGuests);
+    renderGuests(applyGuestFilter(allGuests));
+    document.getElementById("guestModalSubtitle").textContent =
+      `${allGuests.length} guest${allGuests.length !== 1 ? "s" : ""} on record`;
+    loadRecommended();
+  }
+
+  // ══ Person typeahead ══
+  let typeaheadTimer = null;
+  let pendingName = "";
+
+  document
+    .getElementById("personSearch")
+    .addEventListener("input", function () {
+      const q = this.value.trim();
+      pendingName = q;
+      clearTimeout(typeaheadTimer);
+      if (!q) {
+        closeDropdown();
+        return;
+      }
+      typeaheadTimer = setTimeout(() => fetchPeople(q), 220);
+    });
+
+  document
+    .getElementById("personSearch")
+    .addEventListener("keydown", function (e) {
+      const list = document.getElementById("personDropdown");
+      const items = list.querySelectorAll(".typeahead-item");
+      const active = list.querySelector(".typeahead-item.active");
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        const next = active ? active.nextElementSibling : items[0];
+        if (next && next.classList.contains("typeahead-item")) {
+          active && active.classList.remove("active");
+          next.classList.add("active");
+        }
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        const prev = active && active.previousElementSibling;
+        if (prev && prev.classList.contains("typeahead-item")) {
+          active.classList.remove("active");
+          prev.classList.add("active");
+        }
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        const act = list.querySelector(".typeahead-item.active");
+        if (act) act.click();
+      } else if (e.key === "Escape") {
+        closeDropdown();
+      }
+    });
+
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".typeahead-wrap")) closeDropdown();
+  });
+
+  function closeDropdown() {
+    document.getElementById("personDropdown").classList.remove("show");
+  }
+
+  async function fetchPeople(q) {
+    const res = await fetch(`/people/search/?q=${encodeURIComponent(q)}`);
+    const people = await res.json();
+    const dd = document.getElementById("personDropdown");
+
+    // Group people by company for bulk invite option
+    const byCompany = {};
+    people.forEach((p) => {
+      if (p.company) {
+        if (!byCompany[p.company]) byCompany[p.company] = [];
+        byCompany[p.company].push(p);
+      }
+    });
+
+    let html = people
+      .map(
+        (p) => `
+  <div class="typeahead-item" data-person-id="${p.id}" data-person-name="${p.name.replace(/"/g, "&quot;")}">
+    <strong>${p.name}</strong>
+    ${p.company || p.title ? `<div class="meta">${[p.title, p.company].filter(Boolean).join(" · ")}</div>` : ""}
+  </div>`,
+      )
+      .join("");
+
+    // Add bulk invite by company option if search matches company name
+    const companyMatches = Object.keys(byCompany).filter((co) =>
+      co.toLowerCase().includes(q.toLowerCase()),
+    );
+    if (companyMatches.length > 0) {
+      html += companyMatches
+        .map(
+          (co, idx) => `
+  <div class="typeahead-item bulk-invite-item" style="background:#f0f3fc;border-top:1px solid #e9ecef" data-company-name="${co.replace(/"/g, "&quot;")}" data-person-ids="${byCompany[co].map((p) => p.id).join(",")}">
+    <i class="bi bi-people-fill me-1" style="color:var(--brand)"></i><strong>${co}</strong>
+    <div class="meta">${byCompany[co].length} person${byCompany[co].length > 1 ? "s" : ""}</div>
+  </div>`,
+        )
+        .join("");
+    }
+
+    html += `<div class="typeahead-new" data-new-person="${q.replace(/"/g, "&quot;")}">
+  <i class="bi bi-plus-circle me-1"></i>Create "<strong>${q}</strong>"
+</div>`;
+
+    dd.innerHTML = html;
+
+    // Attach event listeners
+    dd.querySelectorAll(".typeahead-item[data-person-id]").forEach((item) => {
+      item.addEventListener("click", () =>
+        addExistingGuest(item.dataset.personId, item.dataset.personName),
+      );
+    });
+    dd.querySelectorAll(".typeahead-item.bulk-invite-item").forEach((item) => {
+      item.addEventListener("click", () =>
+        bulkInviteCompany(
+          item.dataset.companyName,
+          item.dataset.personIds.split(","),
+        ),
+      );
+    });
+    dd.querySelector(".typeahead-new")?.addEventListener("click", (e) => {
+      openNewPerson(e.currentTarget.dataset.newPerson);
+    });
+
+    dd.classList.add("show");
+  }
+
+  async function addExistingGuest(personId, name) {
+    closeDropdown();
+    document.getElementById("personSearch").value = "";
+    const already = allGuests.find((g) => g.person_id === personId);
+    if (already) {
+      alert(`${name} is already on the guest list.`);
+      return;
+    }
+    const res = await postJSON(`/events/${currentEventId}/guests/add/`, {
+      person_id: personId,
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      if (res.status === 409 && data.already_exists) {
+        alert(`${name} is already on the guest list.`);
+        return;
+      }
+      alert("Failed to add guest");
+      return;
+    }
+    const data = await res.json();
+    if (!data.already_exists) {
+      allGuests.push(data);
+      buildSummary(allGuests);
+      renderGuests(applyGuestFilter(allGuests));
+      document.getElementById("guestModalSubtitle").textContent =
+        `${allGuests.length} guest${allGuests.length !== 1 ? "s" : ""} on record`;
+    } else {
+      alert(`${name} is already on the guest list.`);
+    }
+  }
+
+  async function bulkInviteCompany(companyName, personIds) {
+    closeDropdown();
+    const ids = Array.isArray(personIds)
+      ? personIds.map(Number)
+      : JSON.parse(personIds);
+    const notAlreadyAdded = ids.filter(
+      (id) => !allGuests.find((g) => g.person_id == id),
+    );
+    if (notAlreadyAdded.length === 0) {
+      alert(`All people from ${companyName} are already on the guest list.`);
+      return;
+    }
+    const count = notAlreadyAdded.length;
+    if (
+      !confirm(
+        `Add ${count} person${count > 1 ? "s" : ""} from ${companyName} to the guest list?`,
+      )
+    )
+      return;
+
+    let addedCount = 0;
+    let skippedCount = 0;
+
+    for (const personId of notAlreadyAdded) {
+      try {
+        const res = await postJSON(`/events/${currentEventId}/guests/add/`, {
+          person_id: personId,
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (!data.already_exists) {
+            allGuests.push(data);
+            addedCount++;
+          } else {
+            skippedCount++;
+          }
+        } else {
+          const errData = await res.json();
+          if (res.status === 409 && errData.already_exists) {
+            skippedCount++;
+          }
+        }
+      } catch (e) {
+        /* continue on error */
+      }
+    }
+
+    buildSummary(allGuests);
+    renderGuests(applyGuestFilter(allGuests));
+    document.getElementById("guestModalSubtitle").textContent =
+      `${allGuests.length} guest${allGuests.length !== 1 ? "s" : ""} on record`;
+    document.getElementById("personSearch").value = "";
+
+    if (addedCount > 0 && skippedCount > 0) {
+      alert(
+        `Added ${addedCount} guest${addedCount > 1 ? "s" : ""} from ${companyName}. ${skippedCount} already on list.`,
+      );
+    } else if (addedCount > 0) {
+      alert(
+        `Added ${addedCount} guest${addedCount > 1 ? "s" : ""} from ${companyName}`,
+      );
+    } else {
+      alert(`All people from ${companyName} were already on the guest list.`);
+    }
+  }
+
+  // ══ New Person modal ══
+  let _newPersonClientTimer = null;
+
+  function selectNewPersonClient(id, name) {
+    document.getElementById("npClientId").value = id;
+    document.getElementById("npClientInput").value = "";
+    document.getElementById("npClientName").textContent = name;
+    document.getElementById("npClientSelected").classList.remove("d-none");
+    document.getElementById("npClientInput").classList.add("d-none");
+    document.getElementById("npClientDropdown").classList.remove("show");
+  }
+
+  function clearNewPersonClient() {
+    document.getElementById("npClientId").value = "";
+    document.getElementById("npClientInput").value = "";
+    document.getElementById("npClientSelected").classList.add("d-none");
+    document.getElementById("npClientInput").classList.remove("d-none");
+    document.getElementById("npClientDropdown").classList.remove("show");
+  }
+
+  function setupNewPersonTypeahead() {
+    const input = document.getElementById("npClientInput");
+    const dd = document.getElementById("npClientDropdown");
+    if (!input) return;
+
+    input.addEventListener("input", () => {
+      const q = input.value.trim();
+      clearTimeout(_newPersonClientTimer);
+      if (!q) {
+        dd.classList.remove("show");
+        return;
+      }
+      _newPersonClientTimer = setTimeout(async () => {
+        try {
+          const res = await fetch(`/clients/?q=${encodeURIComponent(q)}`);
+          const clients = await res.json();
+          dd.innerHTML =
+            clients
+              .map(
+                (c) => `
+            <div class="typeahead-item" data-id="${c.id}" data-name="${c.name.replace(/"/g, "&quot;")}">
+              ${c.name}
+            </div>`,
+              )
+              .join("") ||
+            '<div class="typeahead-item text-muted">No results</div>';
+          dd.querySelectorAll(".typeahead-item[data-id]").forEach((item) => {
+            item.addEventListener("click", () =>
+              selectNewPersonClient(item.dataset.id, item.dataset.name),
+            );
+          });
+          dd.classList.add("show");
+        } catch {}
+      }, 200);
+    });
+
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest(".typeahead-wrap")) dd.classList.remove("show");
+    });
+  }
+
+  const newPersonModal = new bootstrap.Modal(
+    document.getElementById("newPersonModal"),
+  );
+
+  async function openNewPerson(prefill) {
+    closeDropdown();
+    document.getElementById("npFirstName").value = "";
+    document.getElementById("npLastName").value = "";
+    document.getElementById("npEmail").value = "";
+    document.getElementById("npPhone").value = "";
+    document.getElementById("npTitle").value = "";
+    document.getElementById("npWF").checked = false;
+    document.getElementById("npError").classList.add("d-none");
+    clearNewPersonClient();
+    setupNewPersonTypeahead();
+    if (prefill) {
+      const parts = prefill.trim().split(/\s+/);
+      document.getElementById("npFirstName").value = parts[0] || "";
+      document.getElementById("npLastName").value = parts.slice(1).join(" ");
+    }
+    newPersonModal.show();
+  }
+
+  function cancelNewPerson() {
+    newPersonModal.hide();
+    document.getElementById("personSearch").focus();
+  }
+
+  async function submitNewPerson() {
+    const errEl = document.getElementById("npError");
+    errEl.classList.add("d-none");
+    const first = document.getElementById("npFirstName").value.trim();
+    const last = document.getElementById("npLastName").value.trim();
+    if (!first && !last) {
+      errEl.textContent = "Please enter at least a first or last name.";
+      errEl.classList.remove("d-none");
+      return;
+    }
+    const res = await postJSON("/people/create/", {
+      first_name: first,
+      last_name: last,
+      email: document.getElementById("npEmail").value.trim(),
+      phone_number: document.getElementById("npPhone").value.trim(),
+      client_id: document.getElementById("npClientId").value || null,
+      title: document.getElementById("npTitle").value.trim(),
+      is_watson_forsberg: document.getElementById("npWF").checked,
+    });
+    const person = await res.json();
+    newPersonModal.hide();
+    await addExistingGuest(person.id, person.name);
+  }
+
+  // ══════════════════════════════════════════
+  //  EVENT CREATE MODAL
+  // ══════════════════════════════════════════
+  const eventCreateModal = new bootstrap.Modal(
+    document.getElementById("eventCreateModal"),
+  );
+
+  async function openEventCreate() {
+    [
+      "ecName",
+      "ecDate",
+      "ecTime",
+      "ecEndDate",
+      "ecEndTime",
+      "ecLocation",
+      "ecRegDue",
+      "ecTickets",
+      "ecDescription",
+      "ecNotes",
+    ].forEach((id) => (document.getElementById(id).value = ""));
+    document.getElementById("ecEventType").value = "";
+    clearBudgetItems("ec");
+    document.getElementById("ecError").classList.add("d-none");
+    document.getElementById("ecNewClientRow").classList.add("d-none");
+    document.getElementById("ecNewClientBtn").classList.remove("d-none");
+    clearEventClient("ec");
+    setupEventClientTypeahead("ec");
+    eventCreateModal.show();
+  }
+
+  async function submitEventCreate() {
+    const errEl = document.getElementById("ecError");
+    errEl.classList.add("d-none");
+    const name = document.getElementById("ecName").value.trim();
+    const date = document.getElementById("ecDate").value;
+    if (!name || !date) {
+      errEl.textContent = "Event name and date are required.";
+      errEl.classList.remove("d-none");
+      return;
+    }
+    const res = await postJSON("/events/create/", {
+      name,
+      date,
+      time: document.getElementById("ecTime").value || null,
+      end_date: document.getElementById("ecEndDate").value || null,
+      end_time: document.getElementById("ecEndTime").value || null,
+      location: document.getElementById("ecLocation").value.trim(),
+      event_type: document.getElementById("ecEventType").value || "",
+      client_id: document.getElementById("ecClientId").value || null,
+      registrations_due: document.getElementById("ecRegDue").value || null,
+      num_tickets: document.getElementById("ecTickets").value || null,
+      description: document.getElementById("ecDescription").value.trim(),
+      notes: document.getElementById("ecNotes").value.trim(),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      errEl.textContent = data.error || "Failed to create event.";
+      errEl.classList.remove("d-none");
+      return;
+    }
+    const eventData = await res.json();
+    const lineItems = getBudgetLineItems("ec");
+    if (lineItems.length > 0) {
+      await postJSON(`/events/${eventData.id}/budget/save/`, {
+        line_items: lineItems,
+      });
+    }
+    eventCreateModal.hide();
+    window.location.reload();
+  }
+
+  // ══════════════════════════════════════════
+  //  EVENT CLIENT TYPEAHEAD
+  // ══════════════════════════════════════════
+  let _eventClientTimer = null;
+
+  function selectEventClient(prefix, id, name) {
+    document.getElementById(prefix + "ClientId").value = id;
+    document.getElementById(prefix + "ClientInput").value = "";
+    document.getElementById(prefix + "ClientName").textContent = name;
+    document
+      .getElementById(prefix + "ClientSelected")
+      .classList.remove("d-none");
+    document.getElementById(prefix + "ClientInput").classList.add("d-none");
+    document.getElementById(prefix + "ClientDropdown").classList.remove("show");
+  }
+
+  function clearEventClient(prefix) {
+    document.getElementById(prefix + "ClientId").value = "";
+    document.getElementById(prefix + "ClientInput").value = "";
+    document.getElementById(prefix + "ClientSelected").classList.add("d-none");
+    document.getElementById(prefix + "ClientInput").classList.remove("d-none");
+    document.getElementById(prefix + "ClientDropdown").classList.remove("show");
+  }
+
+  function setupEventClientTypeahead(prefix) {
+    const input = document.getElementById(prefix + "ClientInput");
+    const dd = document.getElementById(prefix + "ClientDropdown");
+    if (!input) return;
+
+    input.addEventListener("input", () => {
+      const q = input.value.trim();
+      clearTimeout(_eventClientTimer);
+      if (!q) {
+        dd.classList.remove("show");
+        return;
+      }
+      _eventClientTimer = setTimeout(async () => {
+        try {
+          const res = await fetch(`/clients/?q=${encodeURIComponent(q)}`);
+          const clients = await res.json();
+          dd.innerHTML =
+            clients
+              .map(
+                (c) => `
+            <div class="typeahead-item" data-id="${c.id}" data-name="${c.name.replace(/"/g, "&quot;")}">
+              ${c.name}
+            </div>`,
+              )
+              .join("") ||
+            '<div class="typeahead-item text-muted">No results</div>';
+          dd.querySelectorAll(".typeahead-item[data-id]").forEach((item) => {
+            item.addEventListener("click", () =>
+              selectEventClient(prefix, item.dataset.id, item.dataset.name),
+            );
+          });
+          dd.classList.add("show");
+        } catch {}
+      }, 200);
+    });
+
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest(".typeahead-wrap")) dd.classList.remove("show");
+    });
+  }
+
+  // ══════════════════════════════════════════
+  //  NEW CLIENT INLINE
+  // ══════════════════════════════════════════
+  function toggleNewClient(prefix) {
+    const row = document.getElementById(prefix + "NewClientRow");
+    const btn = document.getElementById(prefix + "NewClientBtn");
+    const isHidden = row.classList.contains("d-none");
+    row.classList.toggle("d-none", !isHidden);
+    btn.classList.toggle("d-none", isHidden);
+    if (isHidden) {
+      document.getElementById(prefix + "NewClientName").value = "";
+      document
+        .getElementById(prefix + "NewClientError")
+        .classList.add("d-none");
+      document.getElementById(prefix + "NewClientName").focus();
+    }
+  }
+
+  async function submitNewClient(prefix) {
+    const input = document.getElementById(prefix + "NewClientName");
+    const errEl = document.getElementById(prefix + "NewClientError");
+    const name = input.value.trim();
+    errEl.classList.add("d-none");
+    if (!name) {
+      errEl.textContent = "Client name is required.";
+      errEl.classList.remove("d-none");
+      return;
+    }
+    const res = await postJSON("/clients/create/", { name });
+    if (!res.ok) {
+      const data = await res.json();
+      errEl.textContent = data.error || "Failed to create client.";
+      errEl.classList.remove("d-none");
+      return;
+    }
+    const client = await res.json();
+    selectEventClient(prefix, client.id, client.name);
+    toggleNewClient(prefix);
+  }
+
+  // ══════════════════════════════════════════
+  //  EVENT EDIT MODAL
+  // ══════════════════════════════════════════
+  const eventEditModal = new bootstrap.Modal(
+    document.getElementById("eventEditModal"),
+  );
+
+  async function openEventEdit(btn) {
+    const d = btn.dataset;
+    document.getElementById("eeId").value = d.id;
+    document.getElementById("eeName").value = d.name;
+    document.getElementById("eeDate").value = d.date;
+    document.getElementById("eeTime").value = d.time || "";
+    document.getElementById("eeEndDate").value = d.endDate || "";
+    document.getElementById("eeEndTime").value = d.endTime || "";
+    document.getElementById("eeLocation").value = d.location;
+    document.getElementById("eeRegDue").value = d.regDue || "";
+    document.getElementById("eeTickets").value = d.tickets || "";
+    document.getElementById("eeDescription").value = d.description;
+    document.getElementById("eeNotes").value = d.notes;
+    document.getElementById("eeEventType").value = d.eventType || "";
+    clearBudgetItems("ee");
+    document.getElementById("eeError").classList.add("d-none");
+    document.getElementById("eeNewClientRow").classList.add("d-none");
+    document.getElementById("eeNewClientBtn").classList.remove("d-none");
+    clearEventClient("ee");
+    if (d.client && d.clientName) {
+      selectEventClient("ee", d.client, d.clientName);
+    }
+    setupEventClientTypeahead("ee");
+    eventEditModal.show();
+    loadEventBudget(d.id, "ee");
+  }
+
+  async function deleteEventFromEdit() {
+    const id = document.getElementById("eeId").value;
+    const name = document.getElementById("eeName").value;
+    if (
+      !confirm(
+        `Permanently delete "${name}" and all its guest records? This cannot be undone.`,
+      )
+    )
+      return;
+    const res = await postJSON(`/events/${id}/delete/`, {});
+    if (!res.ok) {
+      alert("Failed to delete event.");
+      return;
+    }
+    eventEditModal.hide();
+    const card = document
+      .querySelector(`.event-item [data-id="${id}"]`)
+      ?.closest(".event-item");
+    if (card) card.remove();
+    else window.location.reload();
+  }
+
+  async function submitEventEdit() {
+    const errEl = document.getElementById("eeError");
+    errEl.classList.add("d-none");
+    const id = document.getElementById("eeId").value;
+    const name = document.getElementById("eeName").value.trim();
+    const date = document.getElementById("eeDate").value;
+    if (!name || !date) {
+      errEl.textContent = "Event name and date are required.";
+      errEl.classList.remove("d-none");
+      return;
+    }
+    const res = await postJSON(`/events/${id}/update/`, {
+      name,
+      date,
+      time: document.getElementById("eeTime").value || null,
+      end_date: document.getElementById("eeEndDate").value || null,
+      end_time: document.getElementById("eeEndTime").value || null,
+      location: document.getElementById("eeLocation").value.trim(),
+      event_type: document.getElementById("eeEventType").value || "",
+      client_id: document.getElementById("eeClientId").value || null,
+      registrations_due: document.getElementById("eeRegDue").value || null,
+      num_tickets: document.getElementById("eeTickets").value || null,
+      description: document.getElementById("eeDescription").value.trim(),
+      notes: document.getElementById("eeNotes").value.trim(),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      errEl.textContent = data.error || "Failed to update event.";
+      errEl.classList.remove("d-none");
+      return;
+    }
+    await postJSON(`/events/${id}/budget/save/`, {
+      line_items: getBudgetLineItems("ee"),
+    });
+    eventEditModal.hide();
+    window.location.reload();
+  }
+
+  // ══════════════════════════════════════════
+  //  EVENT DETAIL MODAL
+  // ══════════════════════════════════════════
+  const MAPS_API_KEY = "{{ google_maps_api_key|escapejs }}";
+  const eventDetailModal = new bootstrap.Modal(
+    document.getElementById("eventDetailModal"),
+  );
+  let _pendingMap = null;
+  let _mapsApiLoaded = false;
+  let _mapsApiPromise = null;
+
+  document
+    .getElementById("eventDetailModal")
+    .addEventListener("shown.bs.modal", () => {
+      if (_pendingMap) {
+        const { location, container, fallback } = _pendingMap;
+        _pendingMap = null;
+        resolveLocation(location, container, fallback);
+      }
+    });
+
+  function loadMapsApi() {
+    if (_mapsApiLoaded) return Promise.resolve();
+    if (_mapsApiPromise) return _mapsApiPromise;
+    _mapsApiPromise = new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = `https://maps.googleapis.com/maps/api/js?key=${MAPS_API_KEY}`;
+      s.onload = () => {
+        _mapsApiLoaded = true;
+        resolve();
+      };
+      s.onerror = () => reject(new Error("Maps API failed to load"));
+      document.head.appendChild(s);
+    });
+    return _mapsApiPromise;
+  }
+
+  function resolveLocation(location, container, fallback) {
+    if (MAPS_API_KEY) {
+      loadMapsApi()
+        .then(() => {
+          new google.maps.Geocoder().geocode(
+            { address: location },
+            (results, status) => {
+              if (status === "OK") {
+                container.classList.remove("d-none");
+                const map = new google.maps.Map(container, {
+                  center: results[0].geometry.location,
+                  zoom: 15,
+                  mapTypeControl: false,
+                  streetViewControl: false,
+                  fullscreenControl: false,
+                });
+                new google.maps.Marker({
+                  map,
+                  position: results[0].geometry.location,
+                  title: location,
+                });
+                showLocationText(location, fallback);
+              } else {
+                showLocationText(location, fallback);
+              }
+            },
+          );
+        })
+        .catch(() => showLocationText(location, fallback));
+    } else {
+      showLocationText(location, fallback);
+    }
+  }
+
+  function showLocationText(location, fallback) {
+    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
+    fallback.innerHTML =
+      `<i class="bi bi-geo-alt me-1"></i>${location}` +
+      `<a href="${mapsUrl}" target="_blank" rel="noopener"
+          class="ms-2 small text-decoration-none" style="color:var(--brand)">
+         <i class="bi bi-box-arrow-up-right me-1"></i>Open in Maps
+       </a>`;
+    fallback.classList.remove("d-none");
+  }
+
+  function openEventDetail(card) {
+    const editBtn = card.querySelector("[data-id]");
+    if (!editBtn) return;
+    const d = editBtn.dataset;
+    const clientBadge = card.querySelector(".badge-client");
+    const clientName = clientBadge ? clientBadge.textContent.trim() : "";
+    const isUpcoming = !card.classList.contains("past");
+
+    const typeMeta = d.eventType && EVENT_TYPE_META[d.eventType];
+
+    // Header colour — type-specific, muted for past events
+    const typeColor = typeMeta?.color || "var(--brand)";
+    document.getElementById("edHeader").style.background = typeColor;
+    document.getElementById("edHeader").style.filter = isUpcoming
+      ? ""
+      : "grayscale(0.45) brightness(0.8)";
+    document.getElementById("edTitle").textContent = d.name;
+    const typeBadge = typeMeta
+      ? `<span class="badge rounded-pill" style="background:rgba(255,255,255,.22);color:#fff;font-size:.7rem">${typeMeta.label}</span>`
+      : "";
+    const clientBadgeHtml = clientName
+      ? `<span class="badge" style="background:var(--accent);font-size:.7rem;border-radius:20px;padding:.25em .75em">${clientName}</span>`
+      : "";
+    document.getElementById("edBadges").innerHTML = typeBadge + clientBadgeHtml;
+
+    // Date / time row
+    const isMultiDay = d.endDate && d.endDate !== d.date;
+    let dateDisplay;
+    if (isMultiDay) {
+      const s = new Date(d.date + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric" });
+      const e = new Date(d.endDate + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+      dateDisplay = s + " – " + e;
+    } else {
+      dateDisplay = d.date ? new Date(d.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" }) : "";
+    }
+    let infoHtml = `<span class="d-flex align-items-center gap-1"><i class="bi bi-calendar3 text-muted"></i><strong>${dateDisplay}</strong></span>`;
+    if (d.time || d.endTime) {
+      const fmtT = (hhmm) => { const [h, m] = hhmm.split(":"); const t = new Date(); t.setHours(+h, +m, 0); return t.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }); };
+      let timeStr = d.time ? fmtT(d.time) : "";
+      if (d.endTime) timeStr += (timeStr ? " – " : "ends ") + fmtT(d.endTime);
+      infoHtml += `<span class="d-flex align-items-center gap-1"><i class="bi bi-clock text-muted"></i>${timeStr}</span>`;
+    }
+    document.getElementById("edInfoRow").innerHTML = infoHtml;
+
+    // Location
+    const locSection = document.getElementById("edLocationSection");
+    const mapContainer = document.getElementById("edMapContainer");
+    const locFallback = document.getElementById("edLocationFallback");
+    mapContainer.classList.add("d-none");
+    mapContainer.innerHTML = "";
+    locFallback.classList.add("d-none");
+    locFallback.innerHTML = "";
+    if (d.location) {
+      locSection.classList.remove("d-none");
+      _pendingMap = {
+        location: d.location,
+        container: mapContainer,
+        fallback: locFallback,
+      };
+    } else {
+      locSection.classList.add("d-none");
+      _pendingMap = null;
+    }
+
+    // Description
+    const descSection = document.getElementById("edDescSection");
+    if (d.description) {
+      descSection.classList.remove("d-none");
+      document.getElementById("edDesc").textContent = d.description;
+    } else {
+      descSection.classList.add("d-none");
+    }
+
+    // Stats grid (tickets + reg due only)
+    const statsSection = document.getElementById("edStatsSection");
+    const statItems = [];
+    if (d.tickets)
+      statItems.push(["bi-ticket-perforated-fill", "Tickets", d.tickets]);
+    if (d.regDue)
+      statItems.push([
+        "bi-hourglass-split",
+        "Reg. Due",
+        new Date(d.regDue + "T00:00:00").toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        }),
+      ]);
+    if (statItems.length) {
+      statsSection.classList.remove("d-none");
+      document.getElementById("edStats").innerHTML = statItems
+        .map(
+          ([ic, lb, val]) => `
+        <div class="col-6 col-md-3">
+          <div class="rounded-3 p-3 text-center" style="background:#f0f3fc">
+            <i class="bi ${ic} mb-1 d-block" style="color:var(--brand);font-size:1.2rem"></i>
+            <div class="fw-bold" style="color:var(--brand-dark)">${val}</div>
+            <div class="text-muted small">${lb}</div>
+          </div>
+        </div>`,
+        )
+        .join("");
+    } else {
+      statsSection.classList.add("d-none");
+    }
+
+    // Budget breakdown — load async
+    const budgetSection = document.getElementById("edBudgetSection");
+    budgetSection.classList.add("d-none");
+    document.getElementById("edBudgetContent").innerHTML = "";
+    fetch(`/events/${d.id}/budget/`)
+      .then((r) => r.json())
+      .then((bdata) => {
+        if (!bdata.line_items || !bdata.line_items.length) return;
+        budgetSection.classList.remove("d-none");
+        const detailCatOrder = [
+          "materials",
+          "venue",
+          "swag",
+          "tickets",
+          "donations",
+          "travel",
+          "sponsorships",
+          "misc",
+        ];
+        const grouped = {};
+        bdata.line_items.forEach((li) => {
+          if (!grouped[li.category]) grouped[li.category] = [];
+          grouped[li.category].push(li);
+        });
+        const orderedCats = detailCatOrder
+          .filter((c) => grouped[c])
+          .concat(
+            Object.keys(grouped).filter((c) => !detailCatOrder.includes(c)),
+          );
+        let totalP = 0,
+          totalA = 0;
+        let bodyRows = "";
+        orderedCats.forEach((cat) => {
+          const items = grouped[cat];
+          const m = BUDGET_CAT_META[cat] || { label: cat, icon: "bi-tag" };
+          const catP = items.reduce(
+            (s, li) => s + (li.proposed_amount || 0),
+            0,
+          );
+          const catA = items.reduce((s, li) => s + (li.actual_amount || 0), 0);
+          totalP += catP;
+          totalA += catA;
+          const catVar = catA && catP ? catA - catP : null;
+          const catVarHtml =
+            catVar !== null
+              ? `<span style="color:${catVar <= 0 ? "#198754" : "#dc3545"};font-size:.8rem">${catVar <= 0 ? "▼" : "▲"} $${Math.abs(catVar).toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>`
+              : "";
+          bodyRows += `<tr style="background:#f0f3fc;cursor:pointer" onclick="toggleDetailBudgetCat('${cat}')">
+          <td class="px-3 py-1" colspan="2" style="font-size:.82rem">
+            <span class="fw-semibold"><i class="bi ${m.icon} me-1" style="color:var(--brand)"></i>${m.label}</span>
+            <i class="bi bi-chevron-right ms-2" id="detail-bud-chev-${cat}" style="font-size:.75rem;transition:transform .2s"></i>
+          </td>
+          <td class="px-3 py-1 text-end fw-semibold" style="font-size:.82rem">${catP ? "$" + catP.toLocaleString("en-US", { minimumFractionDigits: 2 }) : "—"}</td>
+          <td class="px-3 py-1 text-end fw-semibold" style="font-size:.82rem">${catA ? "$" + catA.toLocaleString("en-US", { minimumFractionDigits: 2 }) : "—"}</td>
+          <td class="px-3 py-1 text-end">${catVarHtml}</td>
+        </tr>`;
+          items.forEach((li) => {
+            const v =
+              li.actual_amount && li.proposed_amount
+                ? li.actual_amount - li.proposed_amount
+                : null;
+            const vHtml =
+              v !== null
+                ? `<span style="color:${v <= 0 ? "#198754" : "#dc3545"};font-size:.78rem">${v <= 0 ? "▼" : "▲"} $${Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>`
+                : "";
+            bodyRows += `<tr class="detail-bud-${cat}" style="display:none">
+            <td class="ps-4 pe-3 py-1 text-muted" style="font-size:.82rem" colspan="2">${li.name}</td>
+            <td class="px-3 py-1 text-end text-muted" style="font-size:.82rem">${li.proposed_amount ? "$" + li.proposed_amount.toLocaleString("en-US", { minimumFractionDigits: 2 }) : "—"}</td>
+            <td class="px-3 py-1 text-end text-muted" style="font-size:.82rem">${li.actual_amount ? "$" + li.actual_amount.toLocaleString("en-US", { minimumFractionDigits: 2 }) : "—"}</td>
+            <td class="px-3 py-1 text-end">${vHtml}</td>
+          </tr>`;
+          });
+        });
+        const totVar = totalA && totalP ? totalA - totalP : null;
+        const totVarHtml =
+          totVar !== null
+            ? `<span style="color:${totVar <= 0 ? "#198754" : "#dc3545"};font-size:.82rem">${totVar <= 0 ? "▼" : "▲"} $${Math.abs(totVar).toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>`
+            : "";
+        document.getElementById("edBudgetContent").innerHTML = `
+        <table class="table table-sm mb-0" style="font-size:.85rem">
+          <thead style="background:var(--brand);color:#fff">
+            <tr>
+              <th class="py-2 px-3" colspan="2">Category / Item</th>
+              <th class="py-2 px-3 text-end">Proposed</th>
+              <th class="py-2 px-3 text-end">Actual</th>
+              <th class="py-2 px-3 text-end">Variance</th>
+            </tr>
+          </thead>
+          <tbody>${bodyRows}</tbody>
+          <tfoot style="background:#f0f3fc">
+            <tr class="fw-semibold">
+              <td class="px-3 py-2" colspan="2">Total</td>
+              <td class="px-3 py-2 text-end">${totalP ? "$" + totalP.toLocaleString("en-US", { minimumFractionDigits: 2 }) : "—"}</td>
+              <td class="px-3 py-2 text-end">${totalA ? "$" + totalA.toLocaleString("en-US", { minimumFractionDigits: 2 }) : "—"}</td>
+              <td class="px-3 py-2 text-end">${totVarHtml}</td>
+            </tr>
+          </tfoot>
+        </table>`;
+      })
+      .catch(() => {
+        /* budget section stays hidden */
+      });
+
+    // Notes
+    const notesSection = document.getElementById("edNotesSection");
+    if (d.notes) {
+      notesSection.classList.remove("d-none");
+      document.getElementById("edNotes").textContent = d.notes;
+    } else {
+      notesSection.classList.add("d-none");
+    }
+
+    // Audit footnote
+    const auditEl = document.getElementById("edAudit");
+    const fmtDate = (iso) =>
+      iso
+        ? new Date(iso + "T00:00:00").toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          })
+        : null;
+    const parts = [];
+    if (d.createdAt) {
+      const who = d.createdBy ? `<strong>${d.createdBy}</strong>` : "Unknown";
+      parts.push(
+        `<i class="bi bi-plus-circle me-1"></i>Created by ${who} · ${fmtDate(d.createdAt)}`,
+      );
+    }
+    if (d.updatedAt && (d.updatedBy || d.updatedAt !== d.createdAt)) {
+      const who = d.updatedBy ? `<strong>${d.updatedBy}</strong>` : "Unknown";
+      parts.push(
+        `<i class="bi bi-pencil me-1"></i>Last edited by ${who} · ${fmtDate(d.updatedAt)}`,
+      );
+    }
+    if (parts.length) {
+      auditEl.innerHTML = parts.join('<span class="mx-2 opacity-50">·</span>');
+      auditEl.classList.remove("d-none");
+    } else {
+      auditEl.classList.add("d-none");
+    }
+
+    // Guests / Edit / Calendar buttons in footer
+    const evId = d.id,
+      evName = d.name;
+    const calStatus = document.getElementById("edCalendarStatus");
+    calStatus.classList.toggle("d-none", !d.calendarEventId);
+
+    document.getElementById("edCalendarBtn").onclick = async () => {
+      const btn = document.getElementById("edCalendarBtn");
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Adding…';
+      try {
+        const res = await fetch(`/events/${evId}/calendar/add/`);
+        const data = await res.json();
+        if (res.ok && data.ok) {
+          btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Added!';
+          btn.classList.add("text-success");
+          document.getElementById("edCalendarStatus").classList.remove("d-none");
+        } else {
+          btn.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>Failed';
+          btn.classList.add("text-danger");
+        }
+      } catch {
+        btn.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>Failed';
+        btn.classList.add("text-danger");
+      }
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-calendar-plus me-1"></i>Add to Katya\'s Calendar';
+        btn.classList.remove("text-success", "text-danger");
+      }, 3000);
+    };
+    document.getElementById("edGuestsBtn").onclick = () => {
+      eventDetailModal.hide();
+      openGuests(evId, evName);
+    };
+    document.getElementById("edEditBtn").onclick = () => {
+      eventDetailModal.hide();
+      openEventEdit(editBtn);
+    };
+
+    eventDetailModal.show();
+  }
+
+  // ══ Auto-open event from ?open= URL param (must run after all modal inits) ══
+  (function () {
+    const params = new URLSearchParams(window.location.search);
+    const openId = params.get("open");
+    if (openId) {
+      history.replaceState({}, "", window.location.pathname);
+      const btn = document.querySelector(`.event-item [data-id="${openId}"]`);
+      if (btn) openEventDetail(btn.closest(".event-card"));
+    }
+  })();
+</script>

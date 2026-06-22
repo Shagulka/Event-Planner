@@ -1,0 +1,166 @@
+<style>
+  /* ── Event cards ── */
+  .event-card {
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
+    transition:
+      transform 0.15s,
+      box-shadow 0.15s;
+  }
+  .event-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.13);
+  }
+  .event-card .card-header {
+    background: var(--brand);
+    color: #fff;
+    border-radius: 12px 12px 0 0 !important;
+    padding: 0.9rem 1.2rem;
+  }
+  .event-card.past .card-header {
+    filter: grayscale(0.45) brightness(0.78);
+  }
+  .event-date {
+    font-size: 0.8rem;
+    opacity: 0.8;
+  }
+  .event-card .card-title {
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin: 0;
+  }
+
+  .badge-client {
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.7rem;
+    border-radius: 20px;
+    padding: 0.25em 0.75em;
+  }
+  .meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.2rem;
+    font-size: 0.84rem;
+    color: #555;
+  }
+  .meta-row i {
+    color: var(--brand-light);
+  }
+  .budget-pill {
+    font-size: 0.76rem;
+    border-radius: 20px;
+    padding: 0.2em 0.75em;
+  }
+  .btn-guests {
+    font-size: 0.78rem;
+    border-radius: 20px;
+    color: var(--brand);
+    border-color: var(--brand);
+  }
+  .btn-guests:hover {
+    background: var(--brand);
+    color: #fff;
+  }
+
+  /* ── Guest modal ── */
+  #guestModal .modal-header,
+  #newPersonModal .modal-header,
+  #eventCreateModal .modal-header {
+    background: var(--brand);
+    color: #fff;
+  }
+  #guestModal .modal-header .btn-close,
+  #newPersonModal .modal-header .btn-close,
+  #eventCreateModal .modal-header .btn-close {
+    filter: invert(1);
+  }
+
+  .guest-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--brand-light);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.78rem;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .guest-row td {
+    vertical-align: middle;
+    font-size: 0.84rem;
+  }
+
+  /* ── Typeahead ── */
+  .typeahead-wrap {
+    position: relative;
+  }
+  .typeahead-list {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 1055;
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+    max-height: 240px;
+    overflow-y: auto;
+    display: none;
+  }
+  .typeahead-list.show {
+    display: block;
+  }
+  .typeahead-item {
+    padding: 0.55rem 0.9rem;
+    cursor: pointer;
+    font-size: 0.88rem;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .typeahead-item:last-child {
+    border-bottom: none;
+  }
+  .typeahead-item:hover,
+  .typeahead-item.active {
+    background: #eef1fc;
+  }
+  .typeahead-item .meta {
+    font-size: 0.75rem;
+    color: #888;
+  }
+  .typeahead-new {
+    padding: 0.55rem 0.9rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: var(--brand);
+    font-weight: 600;
+    border-top: 1px solid #e9ecef;
+  }
+  .typeahead-new:hover {
+    background: #eef1fc;
+  }
+
+  /* ── Status buttons ── */
+  .status-btn {
+    border: none;
+    background: none;
+    padding: 0;
+    cursor: pointer;
+    font-size: 1.1rem;
+    transition: transform 0.1s;
+  }
+  .status-btn:hover {
+    transform: scale(1.2);
+  }
+  .status-on {
+    color: #198754;
+  }
+  .status-off {
+    color: #ced4da;
+  }
+</style>
