@@ -21,7 +21,7 @@ def auto_link_user_to_person(sender, instance, **kwargs):  # noqa: ARG001
     if UserProfile.objects.filter(user=instance).exists():
         return
     try:
-        person = Person.objects.get(email=instance.email, is_watson_forsberg=True)
+        person = Person.objects.get(email__iexact=instance.email, is_watson_forsberg=True)
         if not UserProfile.objects.filter(person=person).exists():
             UserProfile.objects.create(user=instance, person=person)
     except Person.DoesNotExist:

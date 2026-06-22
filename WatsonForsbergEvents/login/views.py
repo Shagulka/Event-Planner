@@ -16,7 +16,7 @@ def _try_link_user_to_person(user):
     if not user.email or UserProfile.objects.filter(user=user).exists():
         return
     try:
-        person = Person.objects.get(email=user.email, is_watson_forsberg=True)
+        person = Person.objects.get(email__iexact=user.email, is_watson_forsberg=True)
         if not UserProfile.objects.filter(person=person).exists():
             UserProfile.objects.create(user=user, person=person)
     except Person.DoesNotExist:
