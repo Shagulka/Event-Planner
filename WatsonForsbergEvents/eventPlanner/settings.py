@@ -11,7 +11,10 @@ SECRET_KEY = os.environ['SECRET_KEY']
 
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = ['events.wfco.io', 'wfco.io', '159.223.195.211', '*']
+if DEBUG:
+    ALLOWED_HOSTS = ['events.wfco.io', 'wfco.io', '159.223.195.211', "*"]
+else:
+    ALLOWED_HOSTS = ['events.wfco.io', 'wfco.io', '159.223.195.211']
 
 
 # Applicaton definition
