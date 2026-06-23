@@ -461,7 +461,7 @@
     // Aggregate budget categories across visible rows
     const aggCats = {};
     rows.forEach(r => {
-      if (r.budget_categories) {
+      if (r.budget_categories && r.total_actual != null) {
         Object.entries(r.budget_categories).forEach(([cat, vals]) => {
           if (!aggCats[cat]) aggCats[cat] = { proposed: 0, actual: 0 };
           aggCats[cat].proposed += vals.proposed || 0;
