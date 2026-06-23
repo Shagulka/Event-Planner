@@ -172,7 +172,7 @@ def event_guest_update(request, event_id, person_id):
 
 
 def get_access_token():
-    URL = "https://login.microsoftonline.com/REDACTED_TENANT_ID/oauth2/v2.0/token"
+    URL = f"https://login.microsoftonline.com/{settings.MICROSOFT_TENANT_ID}/oauth2/v2.0/token"
     data = {
         "grant_type": "client_credentials",
         "client_id": settings.MICROSOFT_CALENDAR_API_CLIENT_ID,
@@ -189,7 +189,7 @@ def get_access_token():
 @login_required
 @require_GET
 def add_to_calendar(request, event_id):
-    URL = "https://graph.microsoft.com/v1.0/users/REDACTED_CALENDAR_USER/events"
+    URL = f"https://graph.microsoft.com/v1.0/users/{settings.MICROSOFT_CALENDAR_USER}/events"
     event = get_object_or_404(Event, pk=event_id)
     # No start/end time is all day - free
     # Only start time accross multiple days - free (ending the end day at 11:59pm)
@@ -265,7 +265,7 @@ def add_guests_to_calendar(request, event_id):
         .select_related('person')
     )
 
-    BASE_URL = "https://graph.microsoft.com/v1.0/users/REDACTED_CALENDAR_USER/events"
+    BASE_URL = f"https://graph.microsoft.com/v1.0/users/{settings.MICROSOFT_CALENDAR_USER}/events"
     token = get_access_token()
     if not token:
         return JsonResponse({'error': 'Could not obtain Microsoft access token'}, status=502)
