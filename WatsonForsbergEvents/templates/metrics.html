@@ -446,14 +446,17 @@
     const ta = rows.reduce((s, r) => s + (r.total_actual   || 0), 0);
     document.getElementById("sumProposed").textContent    = fmtK(tp);
     document.getElementById("sumActual").textContent      = fmtK(ta);
-    const variance = (tp && ta) ? ta - tp : null;
+    // Variance and utilization only consider events that have both figures
+    const tpBoth = rows.reduce((s, r) => r.total_actual != null && r.total_proposed != null ? s + r.total_proposed : s, 0);
+    const taBoth = rows.reduce((s, r) => r.total_actual != null && r.total_proposed != null ? s + r.total_actual   : s, 0);
+    const variance = (tpBoth && taBoth) ? taBoth - tpBoth : null;
     const varEl = document.getElementById("sumVariance");
     varEl.textContent  = variance != null ? fmtK(Math.abs(variance)) : '—';
     varEl.style.color  = variance != null ? (variance <= 0 ? '#198754' : '#dc3545') : '';
     document.getElementById("sumVarianceSub").textContent = variance != null
       ? (variance <= 0 ? 'under budget' : 'over budget') : 'actual vs proposed';
-    document.getElementById("sumUtilization").textContent = (tp && ta)
-      ? Math.round(ta / tp * 100) + '%' : '—';
+    document.getElementById("sumUtilization").textContent = (tpBoth && taBoth)
+      ? Math.round(taBoth / tpBoth * 100) + '%' : '—';
 
     // Aggregate budget categories across visible rows
     const aggCats = {};

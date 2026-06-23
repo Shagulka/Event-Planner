@@ -484,18 +484,26 @@ def metrics_data(request):
 
         try:
             cat_totals = ev.budget.category_totals()
-            total_p = sum(v['proposed'] for v in cat_totals.values()) or None
             total_a = sum(v['actual'] for v in cat_totals.values()) or None
+            total_p = sum(v['proposed'] for v in cat_totals.values()) or None
+            if total_a is not None and total_p is None:
+                # Has actual but no proposed — treat proposed as actual
+                total_p = total_a
+                for cat in cat_totals:
+                    cat_totals[cat]['proposed'] = cat_totals[cat]['actual']
         except EventBudget.DoesNotExist:
             cat_totals = {}
             total_p = None
             total_a = None
 
-        for cat, vals in cat_totals.items():
-            if cat not in agg_categories:
-                agg_categories[cat] = {'proposed': 0.0, 'actual': 0.0}
-            agg_categories[cat]['proposed'] += vals['proposed']
-            agg_categories[cat]['actual'] += vals['actual']
+        # Category breakdown aggregates only events that have actual figures
+        # (keeps utilisation/progress bars accurate)
+        if total_a is not None:
+            for cat, vals in cat_totals.items():
+                if cat not in agg_categories:
+                    agg_categories[cat] = {'proposed': 0.0, 'actual': 0.0}
+                agg_categories[cat]['proposed'] += vals['proposed']
+                agg_categories[cat]['actual'] += vals['actual']
 
         rows.append({
             'id': ev.id,

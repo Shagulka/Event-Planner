@@ -68,8 +68,8 @@ class BudgetLineItem(models.Model):
     budget = models.ForeignKey(EventBudget, on_delete=models.CASCADE, related_name='line_items')
     category = models.CharField(max_length=20, choices=BUDGET_CATEGORIES)
     name = models.CharField(max_length=200)
-    proposed_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    actual_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    proposed_amount = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
+    actual_amount = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
 
     class Meta:
         ordering = ['category', 'id']
@@ -87,8 +87,8 @@ class Event(models.Model):
     notes = models.TextField(blank=True)
     num_tickets = models.PositiveIntegerField(null=True, blank=True)
     registrations_due = models.DateField(null=True, blank=True)
-    proposed_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    approved_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    proposed_amount = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
+    approved_amount = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
     guests = models.ManyToManyField('people.Person', through='EventGuest', related_name='events')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -128,7 +128,7 @@ class Event(models.Model):
 class EventPayment(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='payments')
     year = models.PositiveIntegerField()
-    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    amount = models.DecimalField(max_digits=15, decimal_places=2)
 
     class Meta:
         unique_together = ('event', 'year')
