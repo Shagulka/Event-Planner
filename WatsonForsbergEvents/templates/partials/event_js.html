@@ -1533,6 +1533,58 @@
     eventDetailModal.show();
   }
 
+  // ══ Per-card calendar button ══
+  async function addToCalendarFromCard(btn, eventId) {
+    if (btn.dataset.calendarEventId) return;
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm" style="width:.85rem;height:.85rem"></span>';
+    try {
+      const res = await fetch(`/events/${eventId}/calendar/add/`);
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        btn.dataset.calendarEventId = 'added';
+        btn.innerHTML = '<i class="bi bi-calendar-check text-success"></i>';
+        btn.title = "On Katya's calendar";
+      } else {
+        btn.innerHTML = '<i class="bi bi-exclamation-triangle text-danger"></i>';
+        setTimeout(() => { btn.innerHTML = originalHtml; btn.disabled = false; }, 3000);
+        return;
+      }
+    } catch {
+      btn.innerHTML = '<i class="bi bi-exclamation-triangle text-danger"></i>';
+      setTimeout(() => { btn.innerHTML = originalHtml; btn.disabled = false; }, 3000);
+      return;
+    }
+    btn.disabled = false;
+  }
+
+  // ══ Bulk add all upcoming events to calendar ══
+  async function addAllUpcomingToCalendar() {
+    const bulkBtn = document.getElementById('bulkCalendarBtn');
+    const pending = Array.from(
+      document.querySelectorAll('#upcomingGrid [data-cal-btn]')
+    ).filter(btn => !btn.dataset.calendarEventId);
+
+    if (!pending.length) {
+      bulkBtn.innerHTML = '<i class="bi bi-calendar-check me-1"></i>All on Calendar';
+      return;
+    }
+
+    bulkBtn.disabled = true;
+    for (let i = 0; i < pending.length; i++) {
+      const btn = pending[i];
+      bulkBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-1" style="width:.8rem;height:.8rem"></span>${i + 1}/${pending.length}…`;
+      await addToCalendarFromCard(btn, btn.dataset.calBtn);
+    }
+    const succeeded = pending.filter(btn => btn.dataset.calendarEventId).length;
+    bulkBtn.disabled = false;
+    bulkBtn.innerHTML = `<i class="bi bi-calendar-check me-1"></i>${succeeded} Added!`;
+    setTimeout(() => {
+      bulkBtn.innerHTML = '<i class="bi bi-calendar-plus me-1"></i>Add All to Calendar';
+    }, 4000);
+  }
+
   // ══ Auto-open event from ?open= URL param (must run after all modal inits) ══
   (function () {
     const params = new URLSearchParams(window.location.search);

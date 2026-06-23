@@ -220,57 +220,7 @@
         </tr>
       </thead>
       <tbody id="peopleBody">
-        {% for p in people %}
-        {% with company_str=p.company.all|join:", " client_id=p.company.first.id|default:"" %}
-        <tr class="person-row"
-            data-id="{{ p.id }}"
-            data-first="{{ p.first_name }}"
-            data-last="{{ p.last_name }}"
-            data-email="{{ p.email }}"
-            data-phone="{{ p.phone_number }}"
-            data-cell="{{ p.cell_phone_number }}"
-            data-company="{{ company_str }}"
-            data-client-id="{{ client_id }}"
-            data-title="{{ p.title }}"
-            data-wf="{{ p.is_watson_forsberg|yesno:'true,false' }}"
-            data-notes="{{ p.notes }}"
-            data-pending-invite="{{ p.has_pending_invite|yesno:'true,false' }}"
-            data-search="{{ p.name|lower }} {{ p.email|lower }} {{ company_str|lower }} {{ p.title|lower }}"
-            onclick="openPersonDetail(this)">
-          <td>
-            <div class="d-flex align-items-center gap-2">
-              <div class="avatar">{{ p.first_name|slice:":1" }}{{ p.last_name|slice:":1" }}</div>
-              <div class="person-name-cell">
-                <span class="fw-semibold">{{ p.name }}</span>
-                {% if p.has_pending_invite %}
-                <span class="ms-2 badge rounded-pill" style="background:#e8a020;color:#fff;font-size:.65rem;vertical-align:middle">
-                  <i class="bi bi-clock me-1"></i>Invite pending
-                </span>
-                {% endif %}
-              </div>
-            </div>
-          </td>
-          <td class="col-contact">
-            {% if p.email %}<a href="mailto:{{ p.email }}" class="d-block text-decoration-none small" style="color:#0d6efd"><i class="bi bi-envelope me-1"></i>{{ p.email }}</a>{% endif %}
-            {% if p.phone_number %}<a href="tel:{{ p.phone_number }}" class="d-block text-decoration-none small" style="color:#0d6efd"><i class="bi bi-telephone me-1"></i>{{ p.phone_number }}</a>{% endif %}
-            {% if p.cell_phone_number %}<a href="tel:{{ p.cell_phone_number }}" class="d-block text-decoration-none small" style="color:#0d6efd"><i class="bi bi-phone me-1"></i>{{ p.cell_phone_number }}</a>{% endif %}
-          </td>
-          <td>
-            {% if company_str %}<span class="fw-semibold small">{{ company_str }}</span>{% endif %}
-            {% if p.title %}<br><span class="text-muted small">{{ p.title }}</span>{% endif %}
-          </td>
-          <td class="col-wf text-center">
-            {% if p.is_watson_forsberg %}<span class="wf-badge"><i class="bi bi-building me-1"></i>WF</span>{% endif %}
-          </td>
-          <td>
-            <button class="btn-action edit" title="Edit" onclick="event.stopPropagation(); openEditPerson(this)"><i class="bi bi-pencil"></i></button>
-            <button class="btn-action del" title="Delete" onclick="event.stopPropagation(); deletePerson({{ p.id }}, '{{ p.name|escapejs }}', this)"><i class="bi bi-trash3"></i></button>
-          </td>
-        </tr>
-        {% endwith %}
-        {% empty %}
-        <tr id="noDataRow"><td colspan="5" class="text-center text-muted py-4">No people on record yet.</td></tr>
-        {% endfor %}
+        <tr id="loadingRow"><td colspan="5" class="text-center text-muted py-4"><span class="spinner-border spinner-border-sm me-2"></span>Loading directory…</td></tr>
       </tbody>
     </table>
   </div>
@@ -599,7 +549,6 @@
   document.getElementById('searchInput').addEventListener('input', applyFilters);
   document.getElementById('wfFilter').addEventListener('change', applyFilters);
   document.getElementById('sortSelect').addEventListener('change', applyFilters);
-  applyFilters();
 
   // ── Client typeahead ──
   function selectClient(prefix, id, name) {
@@ -1082,15 +1031,27 @@
     }
   }
 
-  // ── Auto-open person from ?open= URL param ──
-  (function () {
-    const params = new URLSearchParams(window.location.search);
-    const openId = params.get('open');
-    if (openId) {
-      history.replaceState({}, '', window.location.pathname);
-      const row = document.querySelector(`.person-row[data-id="${openId}"]`);
-      if (row) openPersonDetail(row);
+  async function loadPeople() {
+    const loadingRow = document.getElementById('loadingRow');
+    try {
+      const res = await fetch('/people/data/');
+      const people = await res.json();
+      const tbody = document.getElementById('peopleBody');
+      if (loadingRow) loadingRow.remove();
+      people.forEach(p => tbody.appendChild(buildRow(p)));
+      applyFilters();
+      const params = new URLSearchParams(window.location.search);
+      const openId = params.get('open');
+      if (openId) {
+        history.replaceState({}, '', window.location.pathname);
+        const row = document.querySelector(`.person-row[data-id="${openId}"]`);
+        if (row) openPersonDetail(row);
+      }
+    } catch {
+      if (loadingRow) loadingRow.innerHTML =
+        '<td colspan="5" class="text-center text-muted py-4"><i class="bi bi-exclamation-triangle me-2"></i>Failed to load directory.</td>';
     }
-  })();
+  }
+  loadPeople();
 </script>
 {% endblock %}

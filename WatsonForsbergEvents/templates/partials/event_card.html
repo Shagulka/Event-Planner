@@ -58,6 +58,13 @@
           <i class="bi bi-people-fill me-1"></i>{% if event.total_guests %}{{ event.total_guests }} {% endif %}Guests
         </button>
         <button class="btn btn-sm btn-outline btn-guests"
+                onclick="event.stopPropagation(); addToCalendarFromCard(this, {{ event.id }})"
+                data-cal-btn="{{ event.id }}"
+                data-calendar-event-id="{{ event.calendar_event_id }}"
+                title="{% if event.calendar_event_id %}On Katya's calendar{% else %}Add to Katya's calendar{% endif %}">
+          {% if event.calendar_event_id %}<i class="bi bi-calendar-check text-success"></i>{% else %}<i class="bi bi-calendar-plus"></i>{% endif %}
+        </button>
+        <button class="btn btn-sm btn-outline btn-guests"
                 onclick="event.stopPropagation(); openEventEdit(this);"
                 data-id="{{ event.id }}"
                 data-name="{{ event.name }}"

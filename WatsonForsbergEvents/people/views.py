@@ -14,6 +14,12 @@ def _company_str(person):
 
 @login_required
 def index(request):
+    return render(request, "people_list.html", {})
+
+
+@login_required
+@require_GET
+def people_data(request):
     from events.models import EventGuest
     today = datetime.date.today()
     people = (
@@ -30,7 +36,25 @@ def index(request):
         )
         .order_by('last_name', 'first_name')
     )
-    return render(request, "people_list.html", {"people": people})
+    result = []
+    for p in people:
+        companies = list(p.company.all())
+        result.append({
+            'id': p.id,
+            'name': p.name,
+            'first_name': p.first_name,
+            'last_name': p.last_name,
+            'email': p.email,
+            'phone_number': p.phone_number,
+            'cell_phone_number': p.cell_phone_number,
+            'company': ', '.join(c.name for c in companies),
+            'client_id': str(companies[0].id) if companies else '',
+            'title': p.title,
+            'is_watson_forsberg': p.is_watson_forsberg,
+            'notes': p.notes or '',
+            'has_pending_invite': p.has_pending_invite,
+        })
+    return JsonResponse(result, safe=False)
 
 
 @login_required

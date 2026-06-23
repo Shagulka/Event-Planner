@@ -52,13 +52,23 @@
       <p class="section-label mb-0">Upcoming Events</p>
       {% if upcoming_type_counts %}<span class="text-muted" style="font-size:.82rem">{{ upcoming_type_counts }}</span>{% endif %}
     </div>
-    <button
-      class="btn btn-sm text-white fw-semibold"
-      style="background: var(--accent); border: none; border-radius: 20px"
-      onclick="openEventCreate()"
-    >
-      <i class="bi bi-plus-lg me-1"></i>New Event
-    </button>
+    <div class="d-flex gap-2">
+      <button
+        id="bulkCalendarBtn"
+        class="btn btn-sm fw-semibold"
+        style="background:#e8eaf5;color:var(--brand);border:none;border-radius:20px"
+        onclick="addAllUpcomingToCalendar()"
+      >
+        <i class="bi bi-calendar-plus me-1"></i>Add All to Calendar
+      </button>
+      <button
+        class="btn btn-sm text-white fw-semibold"
+        style="background: var(--accent); border: none; border-radius: 20px"
+        onclick="openEventCreate()"
+      >
+        <i class="bi bi-plus-lg me-1"></i>New Event
+      </button>
+    </div>
   </div>
   {% if upcoming_events %}
   <div class="row g-3 mb-5" id="upcomingGrid">

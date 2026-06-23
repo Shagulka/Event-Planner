@@ -10,11 +10,26 @@ from .models import Client
 
 @login_required
 def index(request):
-    clients = Client.objects.select_related('contact_person').order_by('name')
     return render(request, 'company_list.html', {
-        'clients': clients,
         'google_maps_api_key': settings.GOOGLE_MAPS_API_KEY,
     })
+
+
+@login_required
+@require_GET
+def clients_data(request):
+    clients = Client.objects.select_related('contact_person').order_by('name')
+    return JsonResponse([{
+        'id': c.id,
+        'name': c.name,
+        'email': c.email or '',
+        'phone': c.phone or '',
+        'address': c.address or '',
+        'market_area': c.market_area or '',
+        'website': c.website or '',
+        'notes': c.notes or '',
+        'contact_person': _contact_person_data(c),
+    } for c in clients], safe=False)
 
 
 @login_required

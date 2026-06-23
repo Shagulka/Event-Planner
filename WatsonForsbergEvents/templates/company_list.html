@@ -175,48 +175,7 @@
         </tr>
       </thead>
       <tbody id="companiesBody">
-        {% for c in clients %}
-        <tr class="company-row"
-            data-id="{{ c.id }}"
-            data-name="{{ c.name }}"
-            data-email="{{ c.email }}"
-            data-phone="{{ c.phone }}"
-            data-notes="{{ c.notes }}"
-            data-address="{{ c.address }}"
-            data-market-area="{{ c.market_area }}"
-            data-website="{{ c.website }}"
-            data-contact-person-id="{{ c.contact_person_id|default:'' }}"
-            data-contact-person-name="{{ c.contact_person.name|default:'' }}"
-            data-search="{{ c.name|lower }} {{ c.email|lower }}"
-            onclick="openCompanyDetail(this)">
-          <td>
-            <div class="d-flex align-items-center gap-2">
-              <div class="company-avatar">{{ c.name|slice:":2"|upper }}</div>
-              <span class="fw-semibold">{{ c.name }}</span>
-            </div>
-          </td>
-          <td class="col-contact-person">
-            {% if c.contact_person %}
-            <a href="/people/?open={{ c.contact_person_id }}"
-               class="text-decoration-none fw-semibold" style="color:var(--brand)"
-               onclick="event.stopPropagation()">{{ c.contact_person.name }}</a>
-            {% endif %}
-          </td>
-          <td class="col-contact">
-            {% if c.email %}<a href="mailto:{{ c.email }}" class="d-block text-decoration-none small" style="color:#0d6efd"><i class="bi bi-envelope me-1"></i>{{ c.email }}</a>{% endif %}
-            {% if c.phone %}<a href="tel:{{ c.phone }}" class="d-block text-decoration-none small" style="color:#0d6efd"><i class="bi bi-telephone me-1"></i>{{ c.phone }}</a>{% endif %}
-          </td>
-          <td class="text-muted small" style="max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-            {{ c.notes|truncatechars:80 }}
-          </td>
-          <td>
-            <button class="btn-action edit" title="Edit" onclick="event.stopPropagation(); openEditCompany(this)"><i class="bi bi-pencil"></i></button>
-            <button class="btn-action del"  title="Delete" onclick="event.stopPropagation(); deleteCompany({{ c.id }}, '{{ c.name|escapejs }}', this)"><i class="bi bi-trash3"></i></button>
-          </td>
-        </tr>
-        {% empty %}
-        <tr id="noDataRow"><td colspan="5" class="text-center text-muted py-4">No companies on record yet.</td></tr>
-        {% endfor %}
+        <tr id="loadingRow"><td colspan="5" class="text-center text-muted py-4"><span class="spinner-border spinner-border-sm me-2"></span>Loading companies…</td></tr>
       </tbody>
     </table>
   </div>
@@ -549,7 +508,6 @@
 
   document.getElementById('searchInput').addEventListener('input', applyFilters);
   document.getElementById('sortSelect').addEventListener('change', applyFilters);
-  applyFilters();
 
   // ── Build row from API response ──
   function buildRow(c) {
@@ -930,15 +888,27 @@
   setupContactPersonTypeahead('ac');
   setupContactPersonTypeahead('ec');
 
-  // ── Auto-open company from ?open= URL param ──
-  (function () {
-    const params = new URLSearchParams(window.location.search);
-    const openId = params.get('open');
-    if (openId) {
-      history.replaceState({}, '', window.location.pathname);
-      const row = document.querySelector(`.company-row[data-id="${openId}"]`);
-      if (row) openCompanyDetail(row);
+  async function loadCompanies() {
+    const loadingRow = document.getElementById('loadingRow');
+    try {
+      const res = await fetch('/clients/data/');
+      const companies = await res.json();
+      const tbody = document.getElementById('companiesBody');
+      if (loadingRow) loadingRow.remove();
+      companies.forEach(c => tbody.appendChild(buildRow(c)));
+      applyFilters();
+      const params = new URLSearchParams(window.location.search);
+      const openId = params.get('open');
+      if (openId) {
+        history.replaceState({}, '', window.location.pathname);
+        const row = document.querySelector(`.company-row[data-id="${openId}"]`);
+        if (row) openCompanyDetail(row);
+      }
+    } catch {
+      if (loadingRow) loadingRow.innerHTML =
+        '<td colspan="5" class="text-center text-muted py-4"><i class="bi bi-exclamation-triangle me-2"></i>Failed to load companies.</td>';
     }
-  })();
+  }
+  loadCompanies();
 </script>
 {% endblock %}
