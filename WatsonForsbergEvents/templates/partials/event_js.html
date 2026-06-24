@@ -1,4 +1,6 @@
 <script>
+  const CAN_EDIT = {{ can_edit|yesno:"true,false" }};
+
   // ══ CSRF helper ══
   function getCsrf() {
     const m = document.cookie.match(/csrftoken=([^;]+)/);
@@ -314,8 +316,11 @@
   }
 
   function statusBtn(personId, field, value) {
-    const on = value ? "status-on" : "status-off";
     const ico = value ? "bi-check-circle-fill" : "bi-circle";
+    if (!CAN_EDIT) {
+      return `<span class="status-btn ${value ? "status-on" : "status-off"}" style="cursor:default" title="${field}"><i class="bi ${ico}"></i></span>`;
+    }
+    const on = value ? "status-on" : "status-off";
     return `<button class="status-btn ${on}" data-pid="${personId}" data-field="${field}"
                 onclick="toggleStatus(this)" title="${field}">
           <i class="bi ${ico}"></i>
@@ -359,12 +364,12 @@
     <td class="text-center">${statusBtn(g.person_id, "able_to_come", g.able_to_come)}</td>
     <td class="text-center">${statusBtn(g.person_id, "registered", g.registered)}</td>
     <td class="text-center">${statusBtn(g.person_id, "attended", g.attended)}</td>
-    <td
+    ${CAN_EDIT ? `<td>
       <button class="btn btn-link btn-sm text-danger p-0" title="Remove guest"
               onclick="removeGuest(${g.person_id})">
         <i class="bi bi-trash3"></i>
       </button>
-    </td>
+    </td>` : ''}
   </tr>`,
       )
       .join("");
@@ -379,14 +384,16 @@
     document.getElementById("guestSummary").innerHTML = "";
     document.getElementById("guestTableBody").innerHTML = "";
     document.getElementById("guestFilter").value = "";
-    document.getElementById("personSearch").value = "";
-    document.getElementById("personDropdown").classList.remove("show");
+    const _ps = document.getElementById("personSearch");
+    if (_ps) _ps.value = "";
+    document.getElementById("personDropdown")?.classList.remove("show");
     document.getElementById("guestCount").textContent = "";
     document.getElementById("guestLoading").classList.remove("d-none");
     document.getElementById("guestTableWrap").classList.add("d-none");
     document.getElementById("guestEmpty").classList.add("d-none");
-    document.getElementById("recommendedSection").classList.add("d-none");
-    document.getElementById("recommendedList").innerHTML = "";
+    document.getElementById("recommendedSection")?.classList.add("d-none");
+    const _rl = document.getElementById("recommendedList");
+    if (_rl) _rl.innerHTML = "";
     guestModal.show();
     await reloadGuests();
     loadRecommended();
@@ -562,22 +569,17 @@
   let typeaheadTimer = null;
   let pendingName = "";
 
-  document
-    .getElementById("personSearch")
-    .addEventListener("input", function () {
+  const _personSearchEl = document.getElementById("personSearch");
+  if (_personSearchEl) {
+    _personSearchEl.addEventListener("input", function () {
       const q = this.value.trim();
       pendingName = q;
       clearTimeout(typeaheadTimer);
-      if (!q) {
-        closeDropdown();
-        return;
-      }
+      if (!q) { closeDropdown(); return; }
       typeaheadTimer = setTimeout(() => fetchPeople(q), 220);
     });
 
-  document
-    .getElementById("personSearch")
-    .addEventListener("keydown", function (e) {
+    _personSearchEl.addEventListener("keydown", function (e) {
       const list = document.getElementById("personDropdown");
       const items = list.querySelectorAll(".typeahead-item");
       const active = list.querySelector(".typeahead-item.active");
@@ -603,13 +605,14 @@
         closeDropdown();
       }
     });
+  }
 
   document.addEventListener("click", (e) => {
     if (!e.target.closest(".typeahead-wrap")) closeDropdown();
   });
 
   function closeDropdown() {
-    document.getElementById("personDropdown").classList.remove("show");
+    document.getElementById("personDropdown")?.classList.remove("show");
   }
 
   async function fetchPeople(q) {
@@ -681,7 +684,8 @@
 
   async function addExistingGuest(personId, name) {
     closeDropdown();
-    document.getElementById("personSearch").value = "";
+    const _psEl = document.getElementById("personSearch");
+    if (_psEl) _psEl.value = "";
     const already = allGuests.find((g) => g.person_id === personId);
     if (already) {
       alert(`${name} is already on the guest list.`);
@@ -838,9 +842,9 @@
     });
   }
 
-  const newPersonModal = new bootstrap.Modal(
-    document.getElementById("newPersonModal"),
-  );
+  const newPersonModal = CAN_EDIT
+    ? new bootstrap.Modal(document.getElementById("newPersonModal"))
+    : null;
 
   async function openNewPerson(prefill) {
     closeDropdown();
@@ -893,9 +897,9 @@
   // ══════════════════════════════════════════
   //  EVENT CREATE MODAL
   // ══════════════════════════════════════════
-  const eventCreateModal = new bootstrap.Modal(
-    document.getElementById("eventCreateModal"),
-  );
+  const eventCreateModal = CAN_EDIT
+    ? new bootstrap.Modal(document.getElementById("eventCreateModal"))
+    : null;
 
   async function openEventCreate() {
     [
@@ -1069,9 +1073,9 @@
   // ══════════════════════════════════════════
   //  EVENT EDIT MODAL
   // ══════════════════════════════════════════
-  const eventEditModal = new bootstrap.Modal(
-    document.getElementById("eventEditModal"),
-  );
+  const eventEditModal = CAN_EDIT
+    ? new bootstrap.Modal(document.getElementById("eventEditModal"))
+    : null;
 
   async function openEventEdit(btn) {
     const d = btn.dataset;
@@ -1243,9 +1247,8 @@
   }
 
   function openEventDetail(card) {
-    const editBtn = card.querySelector("[data-id]");
-    if (!editBtn) return;
-    const d = editBtn.dataset;
+    const d = card.dataset;
+    if (!d.id) return;
     const clientBadge = card.querySelector(".badge-client");
     const clientName = clientBadge ? clientBadge.textContent.trim() : "";
     const isUpcoming = !card.classList.contains("past");
@@ -1494,41 +1497,46 @@
     const evId = d.id,
       evName = d.name;
     const calStatus = document.getElementById("edCalendarStatus");
-    calStatus.classList.toggle("d-none", !d.calendarEventId);
+    if (calStatus) calStatus.classList.toggle("d-none", !d.calendarEventId);
 
-    document.getElementById("edCalendarBtn").onclick = async () => {
-      const btn = document.getElementById("edCalendarBtn");
-      btn.disabled = true;
-      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Adding…';
-      try {
-        const res = await fetch(`/events/${evId}/calendar/add/`);
-        const data = await res.json();
-        if (res.ok && data.ok) {
-          btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Added!';
-          btn.classList.add("text-success");
-          document.getElementById("edCalendarStatus").classList.remove("d-none");
-        } else {
-          btn.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>Failed';
-          btn.classList.add("text-danger");
+    const edCalBtn = document.getElementById("edCalendarBtn");
+    if (edCalBtn) {
+      edCalBtn.onclick = async () => {
+        edCalBtn.disabled = true;
+        edCalBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Adding…';
+        try {
+          const res = await fetch(`/events/${evId}/calendar/add/`);
+          const data = await res.json();
+          if (res.ok && data.ok) {
+            edCalBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Added!';
+            edCalBtn.classList.add("text-success");
+            if (calStatus) calStatus.classList.remove("d-none");
+          } else {
+            edCalBtn.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>Failed';
+            edCalBtn.classList.add("text-danger");
+          }
+        } catch {
+          edCalBtn.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>Failed';
+          edCalBtn.classList.add("text-danger");
         }
-      } catch {
-        btn.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>Failed';
-        btn.classList.add("text-danger");
-      }
-      setTimeout(() => {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-calendar-plus me-1"></i>Add to Katya\'s Calendar';
-        btn.classList.remove("text-success", "text-danger");
-      }, 3000);
-    };
+        setTimeout(() => {
+          edCalBtn.disabled = false;
+          edCalBtn.innerHTML = '<i class="bi bi-calendar-plus me-1"></i>Add to Katya\'s Calendar';
+          edCalBtn.classList.remove("text-success", "text-danger");
+        }, 3000);
+      };
+    }
     document.getElementById("edGuestsBtn").onclick = () => {
       eventDetailModal.hide();
       openGuests(evId, evName);
     };
-    document.getElementById("edEditBtn").onclick = () => {
-      eventDetailModal.hide();
-      openEventEdit(editBtn);
-    };
+    const edEditBtnEl = document.getElementById("edEditBtn");
+    if (edEditBtnEl) {
+      edEditBtnEl.onclick = () => {
+        eventDetailModal.hide();
+        openEventEdit(card);
+      };
+    }
 
     eventDetailModal.show();
   }

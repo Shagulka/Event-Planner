@@ -23,7 +23,7 @@
   .companies-table thead th { padding: 0.85rem 1rem; border: none; font-weight: 600; }
   .companies-table tbody tr { font-size: 0.88rem; border-bottom: 1px solid #f0f1f5; cursor: pointer; }
   .companies-table tbody tr:last-child { border-bottom: none; }
-  .companies-table tbody tr:hover { background: #f8f9fc; }
+  .companies-table tbody tr:hover > td { background: #e8eaf5; }
   .companies-table tbody td { padding: 0.75rem 1rem; vertical-align: middle; }
 
   .company-avatar {
@@ -132,7 +132,7 @@
 
   <!-- Filter bar -->
   <div class="d-flex flex-wrap align-items-center gap-3 mb-4">
-    <div class="input-group filter-bar" style="max-width: 380px">
+    <div class="input-group filter-bar flex-grow-1" style="max-width: 380px; min-width: 0">
       <span class="input-group-text bg-white border-end-0" style="border-radius: 30px 0 0 30px">
         <i class="bi bi-search text-muted"></i>
       </span>
@@ -140,23 +140,26 @@
              placeholder="Search by name, email…"
              style="border-radius: 0 30px 30px 0" />
     </div>
-    <div class="filter-bar ms-auto">
-      <select id="sortSelect" class="form-select form-select-sm" style="min-width: 150px">
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+      <select id="sortSelect" class="form-select form-select-sm" style="min-width: 130px">
         <option value="name-asc">Name A–Z</option>
         <option value="name-desc">Name Z–A</option>
+        <option value="events-desc">Most Events</option>
       </select>
+      <span class="text-muted small" id="visibleCount"></span>
     </div>
-    <span class="text-muted small" id="visibleCount"></span>
   </div>
 
   <!-- Table header row -->
   <div class="d-flex align-items-center justify-content-between mb-3">
     <p class="section-label mb-0">Companies</p>
+    {% if can_edit %}
     <button class="btn btn-sm text-white fw-semibold"
             style="background: var(--accent); border: none; border-radius: 20px"
             onclick="openAddCompany()">
       <i class="bi bi-building me-1"></i>Add Company
     </button>
+    {% endif %}
   </div>
 
   <div id="emptyState" class="empty-state d-none">
@@ -183,7 +186,7 @@
 
 <!-- ══ Company Detail Modal ══ -->
 <div class="modal fade" id="companyDetailModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-xl modal-dialog-scrollable modal-dialog-centered">
+  <div class="modal-dialog modal-xl modal-fullscreen-sm-down modal-dialog-scrollable modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header border-0" style="background:var(--brand);color:#fff;padding:1.4rem 1.5rem 1.2rem">
         <div class="d-flex align-items-center gap-3 flex-grow-1 me-3">
@@ -260,9 +263,11 @@
       </div>
       <div class="modal-footer border-0" style="background:#f8f9fc">
         <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+        {% if can_edit %}
         <button class="btn btn-sm btn-outline-primary" id="cdEditBtn">
           <i class="bi bi-pencil me-1"></i>Edit
         </button>
+        {% endif %}
       </div>
     </div>
   </div>
@@ -408,6 +413,8 @@
 
 {% block extra_js %}
 <script>
+  const CAN_EDIT = {{ can_edit|yesno:"true,false" }};
+
   const MAPS_API_KEY = "{{ google_maps_api_key|escapejs }}";
   let _mapsApiLoaded = false;
   let _mapsApiPromise = null;
@@ -486,6 +493,11 @@
     const rows  = Array.from(tbody.querySelectorAll('.company-row'));
 
     rows.sort((a, b) => {
+      if (sort === 'events-desc') {
+        const diff = Number(b.dataset.eventCount || 0) - Number(a.dataset.eventCount || 0);
+        if (diff !== 0) return diff;
+        return (a.dataset.name || '').toLowerCase().localeCompare((b.dataset.name || '').toLowerCase());
+      }
       const ka = (a.dataset.name || '').toLowerCase();
       const kb = (b.dataset.name || '').toLowerCase();
       return sort === 'name-desc' ? kb.localeCompare(ka) : ka.localeCompare(kb);
@@ -533,26 +545,30 @@
     tr.dataset.notes             = c.notes || '';
     tr.dataset.contactPersonId   = cp ? cp.id   : '';
     tr.dataset.contactPersonName = cp ? cp.name : '';
+    tr.dataset.eventCount = c.event_count || 0;
     tr.dataset.search = `${(c.name||'').toLowerCase()} ${(c.email||'').toLowerCase()}`;
     tr.setAttribute('onclick', 'openCompanyDetail(this)');
     const cpHtml = cp
       ? `<a href="/people/?open=${cp.id}" class="text-decoration-none fw-semibold"
             style="color:var(--brand)" onclick="event.stopPropagation()">${cp.name}</a>`
       : '';
+    const evtBadge = c.event_count
+      ? `<span class="ms-1 text-muted" style="font-size:.75rem;font-weight:400">${c.event_count} event${c.event_count !== 1 ? 's' : ''}</span>`
+      : '';
     tr.innerHTML = `
       <td>
         <div class="d-flex align-items-center gap-2">
           <div class="company-avatar">${initials}</div>
-          <span class="fw-semibold">${c.name}</span>
+          <span class="fw-semibold">${c.name}</span>${evtBadge}
         </div>
       </td>
       <td class="col-contact-person">${cpHtml}</td>
       <td class="col-contact">${emailHtml}${phoneHtml}</td>
       <td class="text-muted small" style="max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${notesPrev}</td>
-      <td>
+      ${CAN_EDIT ? `<td>
         <button class="btn-action edit" title="Edit" onclick="event.stopPropagation();openEditCompany(this)"><i class="bi bi-pencil"></i></button>
         <button class="btn-action del"  title="Delete" onclick="event.stopPropagation();deleteCompany(${c.id},'${esc(c.name)}',this)"><i class="bi bi-trash3"></i></button>
-      </td>`;
+      </td>` : '<td></td>'}`;
     return tr;
   }
 
@@ -747,7 +763,8 @@
       .forEach(id => document.getElementById(id).classList.add('d-none'));
     document.getElementById('cdLoading').classList.remove('d-none');
 
-    document.getElementById('cdEditBtn').onclick = () => {
+    const cdEditBtnEl = document.getElementById('cdEditBtn');
+    if (cdEditBtnEl) cdEditBtnEl.onclick = () => {
       companyDetailModal.hide();
       const liveRow = document.querySelector(`.company-row[data-id="${d.id}"]`);
       openEditCompany(liveRow.querySelector('.btn-action.edit'));

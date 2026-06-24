@@ -13,61 +13,43 @@
 <div class="container py-4">
   <!-- Search + type filter -->
   <div class="d-flex flex-wrap align-items-center gap-3 mb-4">
-    <div class="input-group filter-bar" style="max-width: 380px">
-      <span
-        class="input-group-text bg-white border-end-0"
-        style="border-radius: 30px 0 0 30px"
-      >
+    <div class="input-group filter-bar flex-grow-1" style="max-width: 380px; min-width: 0">
+      <span class="input-group-text bg-white border-end-0" style="border-radius: 30px 0 0 30px">
         <i class="bi bi-search text-muted"></i>
       </span>
-      <input
-        id="searchInput"
-        type="text"
-        class="form-control border-start-0"
-        placeholder="Search events, clients, locations…"
-        style="border-radius: 0 30px 30px 0"
-      />
+      <input id="searchInput" type="text" class="form-control border-start-0"
+             placeholder="Search events, clients, locations…"
+             style="border-radius: 0 30px 30px 0" />
     </div>
-    <div class="filter-bar">
-      <select
-        id="typeFilter"
-        class="form-select form-select-sm"
-        style="min-width: 160px; border-radius: 30px"
-      >
-        <option value="">All types</option>
-        <option value="CONFERENCE">Conference</option>
-        <option value="MEETING">Meeting</option>
-        <option value="PARTY">Party</option>
-        <option value="FUNDRAISER">Fundraiser</option>
-        <option value="DONATION">Donation</option>
-        <option value="AWARDS">Awards</option>
-        <option value="OTHER">Other</option>
-      </select>
-    </div>
+    <select id="typeFilter" class="form-select form-select-sm" style="min-width: 130px; border-radius: 30px; width: auto">
+      <option value="">All types</option>
+      <option value="CONFERENCE">Conference</option>
+      <option value="MEETING">Meeting</option>
+      <option value="PARTY">Party</option>
+      <option value="FUNDRAISER">Fundraiser</option>
+      <option value="DONATION">Donation</option>
+      <option value="AWARDS">Awards</option>
+      <option value="OTHER">Other</option>
+    </select>
   </div>
 
   <!-- ── Upcoming ── -->
-  <div class="d-flex align-items-center justify-content-between mb-3">
-    <div class="d-flex align-items-baseline gap-3">
-      <p class="section-label mb-0">Upcoming Events</p>
-      {% if upcoming_type_counts %}<span class="text-muted" style="font-size:.82rem">{{ upcoming_type_counts }}</span>{% endif %}
-    </div>
-    <div class="d-flex gap-2">
-      <button
-        id="bulkCalendarBtn"
-        class="btn btn-sm fw-semibold"
-        style="background:#e8eaf5;color:var(--brand);border:none;border-radius:20px"
-        onclick="addAllUpcomingToCalendar()"
-      >
-        <i class="bi bi-calendar-plus me-1"></i>Add All to Calendar
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+    <p class="section-label mb-0 me-1">Upcoming Events</p>
+    {% if upcoming_type_counts %}<span class="text-muted" style="font-size:.82rem">{{ upcoming_type_counts }}</span>{% endif %}
+    <div class="d-flex gap-2 ms-auto">
+      {% if can_edit %}
+      <button id="bulkCalendarBtn" class="btn btn-sm fw-semibold"
+              style="background:#e8eaf5;color:var(--brand);border:none;border-radius:20px"
+              onclick="addAllUpcomingToCalendar()">
+        <i class="bi bi-calendar-plus me-1"></i><span class="d-none d-sm-inline">Add All to </span>Calendar
       </button>
-      <button
-        class="btn btn-sm text-white fw-semibold"
-        style="background: var(--accent); border: none; border-radius: 20px"
-        onclick="openEventCreate()"
-      >
+      <button class="btn btn-sm text-white fw-semibold"
+              style="background:var(--accent);border:none;border-radius:20px"
+              onclick="openEventCreate()">
         <i class="bi bi-plus-lg me-1"></i>New Event
       </button>
+      {% endif %}
     </div>
   </div>
   {% if upcoming_events %}

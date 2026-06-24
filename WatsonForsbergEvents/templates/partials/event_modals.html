@@ -3,7 +3,7 @@
 ══════════════════════════════════════════ -->
 <div class="modal fade" id="eventDetailModal" tabindex="-1" aria-hidden="true">
   <div
-    class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"
+    class="modal-dialog modal-lg modal-fullscreen-sm-down modal-dialog-centered modal-dialog-scrollable"
   >
     <div class="modal-content">
       <div class="modal-header" id="edHeader" style="color: #fff">
@@ -119,18 +119,22 @@
         <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">
           Close
         </button>
+        {% if can_edit %}
         <span id="edCalendarStatus" class="d-none small fw-semibold" style="color:#198754">
           <i class="bi bi-calendar-check me-1"></i>On Katya's calendar
         </span>
         <button class="btn btn-sm btn-outline btn-guests" id="edCalendarBtn">
           <i class="bi bi-calendar-plus me-1"></i>Add to Katya's Calendar
         </button>
+        {% endif %}
         <button class="btn btn-sm btn-outline btn-guests" id="edGuestsBtn">
           <i class="bi bi-people-fill me-1"></i>Guests
         </button>
+        {% if can_edit %}
         <button class="btn btn-sm btn-outline btn-guests" id="edEditBtn">
           <i class="bi bi-pencil me-1"></i>Edit
         </button>
+        {% endif %}
       </div>
     </div>
   </div>
@@ -140,7 +144,7 @@
      GUEST LIST / EDITOR MODAL
 ══════════════════════════════════════════ -->
 <div class="modal fade" id="guestModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+  <div class="modal-dialog modal-xl modal-fullscreen-sm-down modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
         <div>
@@ -158,6 +162,7 @@
         <!-- Summary counts -->
         <div id="guestSummary" class="d-flex flex-wrap gap-2 mb-3"></div>
 
+        {% if can_edit %}
         <!-- Add guest bar -->
         <div class="card border-0 bg-light rounded-3 p-3 mb-3">
           <p
@@ -206,6 +211,7 @@
             <div id="recommendedList" class="d-flex flex-wrap gap-2"></div>
           </div>
         </div>
+        {% endif %}
 
         <!-- Guest filter -->
         <input
@@ -244,7 +250,7 @@
                 <th class="text-center">Coming</th>
                 <th class="text-center">Registered</th>
                 <th class="text-center">Attended</th>
-                <th></th>
+                {% if can_edit %}<th></th>{% endif %}
               </tr>
             </thead>
             <tbody id="guestTableBody"></tbody>
@@ -263,6 +269,7 @@
         >
           <i class="bi bi-tablet me-1"></i>Registration Mode
         </a>
+        {% if can_edit %}
         <button
           id="calendarInviteBtn"
           class="btn btn-sm fw-semibold text-white"
@@ -271,6 +278,7 @@
         >
           <i class="bi bi-calendar-plus me-1"></i>Send Coming Guests a Calendar Invitation
         </button>
+        {% endif %}
         <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">
           Close
         </button>
@@ -279,6 +287,7 @@
   </div>
 </div>
 
+{% if can_edit %}
 <!-- ══════════════════════════════════════════
      NEW PERSON MODAL
 ══════════════════════════════════════════ -->
@@ -384,13 +393,15 @@
     </div>
   </div>
 </div>
+{% endif %}
 
+{% if can_edit %}
 <!-- ══════════════════════════════════════════
      EVENT CREATE MODAL
 ══════════════════════════════════════════ -->
 <div class="modal fade" id="eventCreateModal" tabindex="-1" aria-hidden="true">
   <div
-    class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"
+    class="modal-dialog modal-lg modal-fullscreen-sm-down modal-dialog-centered modal-dialog-scrollable"
   >
     <div class="modal-content">
       <div class="modal-header">
@@ -695,7 +706,7 @@
 ══════════════════════════════════════════ -->
 <div class="modal fade" id="eventEditModal" tabindex="-1" aria-hidden="true">
   <div
-    class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"
+    class="modal-dialog modal-lg modal-fullscreen-sm-down modal-dialog-centered modal-dialog-scrollable"
   >
     <div class="modal-content">
       <div class="modal-header">
@@ -985,3 +996,4 @@
     </div>
   </div>
 </div>
+{% endif %}

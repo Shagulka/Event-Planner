@@ -21,9 +21,9 @@
     letter-spacing: 0.07em;
   }
   .people-table thead th { padding: 0.85rem 1rem; border: none; font-weight: 600; }
-  .people-table tbody tr { font-size: 0.88rem; border-bottom: 1px solid #f0f1f5; }
+  .people-table tbody tr { font-size: 0.88rem; border-bottom: 1px solid #f0f1f5; cursor: pointer; }
   .people-table tbody tr:last-child { border-bottom: none; }
-  .people-table tbody tr:hover { background: #f8f9fc; }
+  .people-table tbody tr:hover > td { background: #e8eaf5; }
   .people-table tbody td { padding: 0.75rem 1rem; vertical-align: middle; }
 
   .avatar {
@@ -169,7 +169,7 @@
 
   <!-- Filter bar -->
   <div class="d-flex flex-wrap align-items-center gap-3 mb-4">
-    <div class="input-group filter-bar" style="max-width: 380px">
+    <div class="input-group filter-bar flex-grow-1" style="max-width: 380px; min-width: 0">
       <span class="input-group-text bg-white border-end-0" style="border-radius: 30px 0 0 30px">
         <i class="bi bi-search text-muted"></i>
       </span>
@@ -177,31 +177,39 @@
              placeholder="Search by name, email, company…"
              style="border-radius: 0 30px 30px 0" />
     </div>
-    <div class="form-check form-switch mb-0 ms-1">
-      <input class="form-check-input" type="checkbox" id="wfFilter" />
-      <label class="form-check-label small fw-semibold" for="wfFilter" style="color: var(--brand)">
-        WF Staff only
-      </label>
-    </div>
-    <div class="filter-bar ms-auto">
-      <select id="sortSelect" class="form-select form-select-sm" style="min-width: 170px">
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+      <div class="form-check form-switch mb-0">
+        <input class="form-check-input" type="checkbox" id="wfFilter" />
+        <label class="form-check-label small fw-semibold" for="wfFilter" style="color: var(--brand)">
+          WF Staff only
+        </label>
+      </div>
+      <div class="form-check form-switch mb-0">
+        <input class="form-check-input" type="checkbox" id="onEventFilter" />
+        <label class="form-check-label small fw-semibold" for="onEventFilter" style="color: var(--brand)">
+          On event list
+        </label>
+      </div>
+      <select id="sortSelect" class="form-select form-select-sm" style="min-width: 150px">
         <option value="last-asc">Last name A–Z</option>
         <option value="last-desc">Last name Z–A</option>
         <option value="first-asc">First name A–Z</option>
         <option value="company-asc">Company A–Z</option>
       </select>
+      <span class="text-muted small" id="visibleCount"></span>
     </div>
-    <span class="text-muted small" id="visibleCount"></span>
   </div>
 
   <!-- Table header row -->
   <div class="d-flex align-items-center justify-content-between mb-3">
     <p class="section-label mb-0">Directory</p>
+    {% if can_edit %}
     <button class="btn btn-sm text-white fw-semibold"
             style="background: var(--accent); border: none; border-radius: 20px"
             onclick="openAddPerson()">
       <i class="bi bi-person-plus-fill me-1"></i>Add Person
     </button>
+    {% endif %}
   </div>
 
   <div id="emptyState" class="empty-state d-none">
@@ -311,7 +319,7 @@
 
 <!-- ══ Person Detail Modal ══ -->
 <div class="modal fade" id="personDetailModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered">
+  <div class="modal-dialog modal-lg modal-fullscreen-sm-down modal-dialog-scrollable modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header border-0" style="background:var(--brand);color:#fff;padding:1.4rem 1.5rem 1.2rem">
         <div class="d-flex align-items-center gap-3 flex-grow-1 me-3">
@@ -388,9 +396,11 @@
       </div>
       <div class="modal-footer border-0" style="background:#f8f9fc">
         <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+        {% if can_edit %}
         <button class="btn btn-sm btn-outline-primary" id="pdEditBtn">
           <i class="bi bi-pencil me-1"></i>Edit
         </button>
+        {% endif %}
       </div>
     </div>
   </div>
@@ -483,6 +493,8 @@
 
 {% block extra_js %}
 <script>
+  const CAN_EDIT = {{ can_edit|yesno:"true,false" }};
+
   function getCsrf() {
     const m = document.cookie.match(/csrftoken=([^;]+)/);
     return m ? m[1] : '';
@@ -504,11 +516,12 @@
   }
 
   function applyFilters() {
-    const q      = document.getElementById('searchInput').value.toLowerCase().trim();
-    const wfOnly = document.getElementById('wfFilter').checked;
-    const sort   = document.getElementById('sortSelect').value;
-    const tbody  = document.getElementById('peopleBody');
-    const rows   = Array.from(tbody.querySelectorAll('.person-row'));
+    const q           = document.getElementById('searchInput').value.toLowerCase().trim();
+    const wfOnly      = document.getElementById('wfFilter').checked;
+    const onEventOnly = document.getElementById('onEventFilter').checked;
+    const sort        = document.getElementById('sortSelect').value;
+    const tbody       = document.getElementById('peopleBody');
+    const rows        = Array.from(tbody.querySelectorAll('.person-row'));
 
     rows.sort((a, b) => {
       // Pending-invite rows always float to the top
@@ -532,9 +545,10 @@
 
     let visible = 0;
     rows.forEach(row => {
-      const matchText = !q || row.dataset.search.includes(q);
-      const matchWF   = !wfOnly || row.dataset.wf === 'true';
-      const show = matchText && matchWF;
+      const matchText   = !q || row.dataset.search.includes(q);
+      const matchWF     = !wfOnly || row.dataset.wf === 'true';
+      const matchEvents = !onEventOnly || row.dataset.hasEvents === 'true';
+      const show = matchText && matchWF && matchEvents;
       row.style.display = show ? '' : 'none';
       if (show) visible++;
     });
@@ -548,6 +562,7 @@
 
   document.getElementById('searchInput').addEventListener('input', applyFilters);
   document.getElementById('wfFilter').addEventListener('change', applyFilters);
+  document.getElementById('onEventFilter').addEventListener('change', applyFilters);
   document.getElementById('sortSelect').addEventListener('change', applyFilters);
 
   // ── Client typeahead ──
@@ -632,6 +647,7 @@
     tr.dataset.wf          = p.is_watson_forsberg ? 'true' : 'false';
     tr.dataset.notes       = p.notes || '';
     tr.dataset.pendingInvite = p.has_pending_invite ? 'true' : 'false';
+    tr.dataset.hasEvents   = p.has_any_event ? 'true' : 'false';
     tr.dataset.search      = searchStr;
     tr.setAttribute('onclick', 'openPersonDetail(this)');
     const pendingBadge = p.has_pending_invite
@@ -649,10 +665,10 @@
       <td class="col-contact">${emailLink}${phoneSpan}${cellSpan}</td>
       <td>${company}${title}</td>
       <td class="col-wf text-center">${wfBadge}</td>
-      <td>
+      ${CAN_EDIT ? `<td>
         <button class="btn-action edit" title="Edit" onclick="event.stopPropagation();openEditPerson(this)"><i class="bi bi-pencil"></i></button>
         <button class="btn-action del" title="Delete" onclick="event.stopPropagation();deletePerson(${p.id}, '${p.name.replace(/'/g, "\\'")}', this)"><i class="bi bi-trash3"></i></button>
-      </td>`;
+      </td>` : '<td></td>'}`;
     return tr;
   }
 
@@ -966,7 +982,8 @@
     document.getElementById('pdLoading').classList.remove('d-none');
 
     // Edit button
-    document.getElementById('pdEditBtn').onclick = () => {
+    const pdEditBtnEl = document.getElementById('pdEditBtn');
+    if (pdEditBtnEl) pdEditBtnEl.onclick = () => {
       personDetailModal.hide();
       const liveRow = document.querySelector(`.person-row[data-id="${d.id}"]`);
       openEditPerson(liveRow.querySelector('.btn-action.edit'));

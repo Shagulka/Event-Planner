@@ -1,11 +1,13 @@
 import datetime
 import json
 from django.conf import settings
+from django.db.models import Count
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET, require_POST
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, get_object_or_404
 from .models import Client
+from events.permissions import require_edit_perm
 
 
 @login_required
@@ -18,7 +20,12 @@ def index(request):
 @login_required
 @require_GET
 def clients_data(request):
-    clients = Client.objects.select_related('contact_person').order_by('name')
+    clients = (
+        Client.objects
+        .select_related('contact_person')
+        .annotate(event_count=Count('events', distinct=True))
+        .order_by('name')
+    )
     return JsonResponse([{
         'id': c.id,
         'name': c.name,
@@ -29,6 +36,7 @@ def clients_data(request):
         'website': c.website or '',
         'notes': c.notes or '',
         'contact_person': _contact_person_data(c),
+        'event_count': c.event_count,
     } for c in clients], safe=False)
 
 
@@ -110,6 +118,7 @@ def client_detail(request, client_id):
 
 
 @login_required
+@require_edit_perm
 @require_POST
 def create_client(request):
     try:
@@ -141,6 +150,7 @@ def create_client(request):
 
 
 @login_required
+@require_edit_perm
 @require_POST
 def update_client(request, client_id):
     client = get_object_or_404(Client, pk=client_id)
@@ -171,6 +181,7 @@ def update_client(request, client_id):
 
 
 @login_required
+@require_edit_perm
 @require_POST
 def delete_client(request, client_id):
     client = get_object_or_404(Client, pk=client_id)

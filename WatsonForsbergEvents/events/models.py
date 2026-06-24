@@ -107,6 +107,11 @@ class Event(models.Model):
     event_type = models.CharField(max_length=20, choices=EventType.choices, blank=True, default='')
     calendar_event_id = models.CharField(max_length=500, blank=True)
 
+    class Meta:
+        permissions = [
+            ('can_edit_events', 'Can create and edit events, people, and companies'),
+        ]
+
     @property
     def total_budget_proposed(self):
         try:

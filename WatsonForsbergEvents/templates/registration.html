@@ -5,7 +5,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="WF Events">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Registration — {{ event.name }}</title>
+  <link rel="icon" type="image/svg+xml" href="{% static 'img/WFfavicon.svg' %}">
+  <link rel="apple-touch-icon" href="{% static 'img/WF-events-180.png' %}">
+  <link rel="manifest" href="{% static 'manifest.json' %}">
+  <meta name="theme-color" content="#2c4391">
   <link href="{% static 'bootstrap-5.3.8-dist/css/bootstrap.min.css' %}" rel="stylesheet" />
   <link href="{% static 'bootstrap-icons-1.13.1/bootstrap-icons.min.css' %}" rel="stylesheet" />
   <style>
@@ -225,6 +231,7 @@
 
 <script>
   const EVENT_ID = {{ event.id }};
+  const CAN_EDIT = {{ can_edit|yesno:"true,false" }};
   let guests = [];
 
   function getCsrf() {
@@ -255,13 +262,13 @@
         <div class="name">${g.name}</div>
         ${meta ? `<div class="meta">${meta}</div>` : ''}
       </div>
-      <button class="checkin-btn ${g._checkedIn ? 'done' : ''}"
+      ${CAN_EDIT ? `<button class="checkin-btn ${g._checkedIn ? 'done' : ''}"
               ${g._checkedIn ? 'disabled' : ''}
               onclick="checkIn(${g.person_id}, this)">
         ${g._checkedIn
           ? '<i class="bi bi-check-lg me-1"></i>Checked In'
           : '<i class="bi bi-check2-circle me-1"></i>Check In'}
-      </button>`;
+      </button>` : (g._checkedIn ? '<span class="checkin-btn done" style="cursor:default"><i class="bi bi-check-lg me-1"></i>Checked In</span>' : '')}`;
     return card;
   }
 

@@ -1,0 +1,26 @@
+{
+  "name": "WF Events",
+  "short_name": "WF Events",
+  "description": "Watson Forsberg Events",
+  "start_url": "/events/",
+  "display": "standalone",
+  "background_color": "#2c4391",
+  "theme_color": "#2c4391",
+  "icons": [
+    {
+      "src": "/static/img/WF-events-180.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/img/WF-Events-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/img/WF-Events-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

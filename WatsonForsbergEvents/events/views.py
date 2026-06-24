@@ -8,6 +8,7 @@ from django.conf import settings
 from django.db.models import Count, Q
 import requests
 from .models import Event, EventGuest, EventBudget, BudgetLineItem, BUDGET_CATEGORIES
+from .permissions import require_edit_perm
 from people.models import Person
 
 
@@ -86,6 +87,7 @@ def event_guests(request, event_id):
 
 
 @login_required
+@require_edit_perm
 @require_POST
 def event_guest_add(request, event_id):
     event = get_object_or_404(Event, pk=event_id)
@@ -137,6 +139,7 @@ def event_guest_add(request, event_id):
 
 
 @login_required
+@require_edit_perm
 @require_POST
 def event_guest_remove(request, event_id, person_id):
     event = get_object_or_404(Event, pk=event_id)
@@ -145,6 +148,7 @@ def event_guest_remove(request, event_id, person_id):
 
 
 @login_required
+@require_edit_perm
 @require_POST
 def event_guest_update(request, event_id, person_id):
     event = get_object_or_404(Event, pk=event_id)
@@ -186,57 +190,40 @@ def get_access_token():
 
 
 
-@login_required
-@require_GET
-def add_to_calendar(request, event_id):
-    URL = f"https://graph.microsoft.com/v1.0/users/{settings.MICROSOFT_CALENDAR_USER}/events"
-    event = get_object_or_404(Event, pk=event_id)
-    # No start/end time is all day - free
-    # Only start time accross multiple days - free (ending the end day at 11:59pm)
-    # Start and end time on same day - busy
-    # Only start time on single day - busy (defaulting to 1 hour if no end time)
+def _build_calendar_payload(event):
     is_all_day = not event.time
     is_multiple_day = bool(event.end_date and event.end_date != event.date)
 
     if is_all_day:
-        # All-day: Graph end is exclusive, so add 1 day
         start_dt = event.date.isoformat() + "T00:00:00"
         end_dt = ((event.end_date or event.date) + datetime.timedelta(days=1)).isoformat() + "T00:00:00"
     elif is_multiple_day:
-        # Has start time, spans multiple days — free, end at 11:59pm of last day if no end_time
         start_dt = event.date.isoformat() + "T" + event.time.isoformat()
-        if event.end_time:
-            end_dt = event.end_date.isoformat() + "T" + event.end_time.isoformat()
-        else:
-            end_dt = event.end_date.isoformat() + "T23:59:00"
+        end_dt = (event.end_date.isoformat() + "T" + event.end_time.isoformat()) if event.end_time \
+            else event.end_date.isoformat() + "T23:59:00"
     else:
-        # Single day with time — busy, default 1 hour if no end_time
         start_dt = event.date.isoformat() + "T" + event.time.isoformat()
-        if event.end_time:
-            end_dt = (event.end_date or event.date).isoformat() + "T" + event.end_time.isoformat()
-        else:
-            end_dt = (datetime.datetime.combine(event.date, event.time) + datetime.timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%S")
+        end_dt = ((event.end_date or event.date).isoformat() + "T" + event.end_time.isoformat()) if event.end_time \
+            else (datetime.datetime.combine(event.date, event.time) + datetime.timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%S")
 
-    data = {
+    return {
         "subject": event.name,
         "showAs": "free" if is_all_day or is_multiple_day else "busy",
         "isAllDay": is_all_day,
-        "start": {
-            "dateTime": start_dt,
-            "timeZone": "Central Standard Time"
-        },
-        "end": {
-            "dateTime": end_dt,
-            "timeZone": "Central Standard Time"
-        },
-        "location": {
-            "displayName": event.location
-        },
-        "body": {
-            "contentType": "HTML",
-            "content": event.description or ""
-        }
+        "start": {"dateTime": start_dt, "timeZone": "Central Standard Time"},
+        "end":   {"dateTime": end_dt,   "timeZone": "Central Standard Time"},
+        "location": {"displayName": event.location or ""},
+        "body": {"contentType": "HTML", "content": event.description or ""},
     }
+
+
+@login_required
+@require_edit_perm
+@require_GET
+def add_to_calendar(request, event_id):
+    URL = f"https://graph.microsoft.com/v1.0/users/{settings.MICROSOFT_CALENDAR_USER}/events"
+    event = get_object_or_404(Event, pk=event_id)
+    data = _build_calendar_payload(event)
     token = get_access_token()
     if not token:
         return JsonResponse({'error': 'Could not obtain Microsoft access token'}, status=502)
@@ -256,6 +243,7 @@ def add_to_calendar(request, event_id):
 
 
 @login_required
+@require_edit_perm
 @require_POST
 def add_guests_to_calendar(request, event_id):
     event = get_object_or_404(Event, pk=event_id)
@@ -320,6 +308,7 @@ def add_guests_to_calendar(request, event_id):
     return JsonResponse({'ok': True, 'added': len(new_attendees)})
 
 @login_required
+@require_edit_perm
 @require_POST
 def event_update(request, event_id):
     event = get_object_or_404(Event, pk=event_id)
@@ -373,6 +362,16 @@ def event_update(request, event_id):
 
     event.updated_by = request.user
     event.save()
+
+    if event.calendar_event_id:
+        token = get_access_token()
+        if token:
+            cal_url = f"https://graph.microsoft.com/v1.0/users/{settings.MICROSOFT_CALENDAR_USER}/events/{event.calendar_event_id}"
+            requests.patch(cal_url, headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+            }, json=_build_calendar_payload(event))
+
     return JsonResponse({'id': event.id, 'name': event.name})
 
 
@@ -398,6 +397,7 @@ def event_budget(request, event_id):
 
 
 @login_required
+@require_edit_perm
 @require_POST
 def event_budget_save(request, event_id):
     event = get_object_or_404(Event, pk=event_id)
@@ -550,6 +550,7 @@ def metrics_data(request):
 
 
 @login_required
+@require_edit_perm
 @require_POST
 def event_delete(request, event_id):
     event = get_object_or_404(Event, pk=event_id)
@@ -558,6 +559,7 @@ def event_delete(request, event_id):
 
 
 @login_required
+@require_edit_perm
 @require_POST
 def event_create(request):
     try:

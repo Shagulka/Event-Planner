@@ -6,6 +6,7 @@ from django.views.decorators.http import require_GET, require_POST
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, get_object_or_404
 from .models import Person
+from events.permissions import require_edit_perm
 
 
 def _company_str(person):
@@ -32,7 +33,10 @@ def people_data(request):
                     invited=False,
                     event__date__gte=today,
                 )
-            )
+            ),
+            has_any_event=Exists(
+                EventGuest.objects.filter(person=OuterRef('pk'))
+            ),
         )
         .order_by('last_name', 'first_name')
     )
@@ -53,6 +57,7 @@ def people_data(request):
             'is_watson_forsberg': p.is_watson_forsberg,
             'notes': p.notes or '',
             'has_pending_invite': p.has_pending_invite,
+            'has_any_event': p.has_any_event,
         })
     return JsonResponse(result, safe=False)
 
@@ -150,6 +155,7 @@ def detail(request, person_id):
 
 
 @login_required
+@require_edit_perm
 @require_POST
 def create(request):
     try:
@@ -196,6 +202,7 @@ def create(request):
 
 
 @login_required
+@require_edit_perm
 @require_POST
 def update(request, person_id):
     person = get_object_or_404(Person, pk=person_id)
@@ -253,6 +260,7 @@ def update(request, person_id):
 
 
 @login_required
+@require_edit_perm
 @require_POST
 def delete(request, person_id):
     person = get_object_or_404(Person, pk=person_id)
