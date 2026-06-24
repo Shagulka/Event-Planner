@@ -37,7 +37,7 @@
     .reg-header {
       background: var(--brand);
       color: #fff;
-      padding: 1rem 1.25rem 0.9rem;
+      padding: calc(1rem + env(safe-area-inset-top, 0px)) 1.25rem 0.9rem;
       flex-shrink: 0;
     }
     .reg-header .event-name {
@@ -89,7 +89,7 @@
       flex: 1;
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
-      padding: 0.75rem 1rem 2rem;
+      padding: 0.75rem 1rem calc(2rem + env(safe-area-inset-bottom, 0px));
       display: flex;
       flex-direction: column;
       gap: 0.6rem;

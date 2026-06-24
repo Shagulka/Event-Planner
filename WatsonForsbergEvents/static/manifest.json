@@ -3,6 +3,7 @@
   "short_name": "WF Events",
   "description": "Watson Forsberg Events",
   "start_url": "/events/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#2c4391",
   "theme_color": "#2c4391",
