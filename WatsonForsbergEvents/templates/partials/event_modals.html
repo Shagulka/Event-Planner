@@ -115,24 +115,26 @@
           style="font-size: 0.75rem; line-height: 1.7"
         ></div>
       </div>
-      <div class="modal-footer flex-wrap gap-2">
-        <button class="btn btn-secondary btn-sm me-auto" data-bs-dismiss="modal">Close</button>
-        {% if can_edit %}
-        <span id="edCalendarStatus" class="d-none align-self-center" title="On Katya's calendar" style="color:#198754;font-size:1.15rem">
-          <i class="bi bi-calendar-check-fill"></i>
-        </span>
-        <button class="btn btn-sm btn-outline btn-guests" id="edCalendarBtn">
-          <i class="bi bi-calendar-plus me-1"></i>Calendar
-        </button>
-        {% endif %}
-        <button class="btn btn-sm btn-outline btn-guests" id="edGuestsBtn">
-          <i class="bi bi-people-fill me-1"></i>Guests
-        </button>
-        {% if can_edit %}
-        <button class="btn btn-sm btn-outline btn-guests px-2" id="edEditBtn" title="Edit event">
-          <i class="bi bi-pencil"></i>
-        </button>
-        {% endif %}
+      <div class="modal-footer ed-footer">
+        <button class="btn btn-secondary btn-sm ed-close-btn" data-bs-dismiss="modal">Close</button>
+        <div class="ed-footer-actions">
+          {% if can_edit %}
+          <span id="edCalendarStatus" class="d-none align-self-center" title="On Katya's calendar" style="color:#198754;font-size:1.15rem">
+            <i class="bi bi-calendar-check-fill"></i>
+          </span>
+          <button class="btn btn-sm btn-outline btn-guests" id="edCalendarBtn">
+            <i class="bi bi-calendar-plus me-1"></i>Calendar
+          </button>
+          {% endif %}
+          <button class="btn btn-sm btn-outline btn-guests" id="edGuestsBtn">
+            <i class="bi bi-people-fill me-1"></i>Guests
+          </button>
+          {% if can_edit %}
+          <button class="btn btn-sm btn-outline btn-guests px-2" id="edEditBtn" title="Edit event">
+            <i class="bi bi-pencil"></i>
+          </button>
+          {% endif %}
+        </div>
       </div>
     </div>
   </div>

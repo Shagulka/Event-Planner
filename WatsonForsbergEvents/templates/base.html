@@ -135,6 +135,18 @@
         .modal-fullscreen-sm-down .modal-footer {
           padding-bottom: max(1.25rem, env(safe-area-inset-bottom, 0px));
         }
+        /* Comfortable tap targets — more padding, not forced height */
+        .modal-footer .btn {
+          padding: 0.45rem 0.85rem;
+          font-size: 0.9rem;
+        }
+        /* Fix iOS Safari: 100% height extends behind the browser toolbar.
+           dvh (dynamic viewport height) shrinks when the toolbar is visible. */
+        .modal-fullscreen-sm-down,
+        .modal-fullscreen-sm-down .modal-content {
+          height: 100dvh;
+          max-height: 100dvh;
+        }
       }
 
       /* ── iOS Install Banner ── */
@@ -266,16 +278,17 @@
         // Keep all navigation inside the PWA shell when running as installed app
         if (navigator.standalone) {
           document.addEventListener('click', function (e) {
-            const a = e.target.closest('a[href]');
-            if (!a || a.target === '_blank' || a.download) return;
-            try {
-              const url = new URL(a.href, location.origin);
-              if (url.origin === location.origin) {
-                e.preventDefault();
-                location.href = a.href;
-              }
-            } catch (_) {}
-          }, true);
+            // Walk up the DOM tree to find an anchor element
+            var node = e.target;
+            while (node && node.nodeName !== 'A') {
+              node = node.parentNode;
+            }
+            if (!node || !node.href || node.target === '_blank' || node.download) return;
+            if (node.href.indexOf(location.host) !== -1) {
+              e.preventDefault();
+              location.href = node.href;
+            }
+          });
         }
       })();
 

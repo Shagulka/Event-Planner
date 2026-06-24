@@ -145,6 +145,70 @@
     background: #eef1fc;
   }
 
+  /* ── Event detail modal footer ── */
+  .ed-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .ed-footer-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: auto;
+  }
+
+  @media (max-width: 575px) {
+    /* Stack footer vertically: actions row on top, Close below */
+    .ed-footer {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.5rem;
+    }
+    .ed-footer-actions {
+      margin-left: 0;
+      width: 100%;
+    }
+    /* Action buttons expand equally to fill the row */
+    .ed-footer-actions .btn {
+      flex: 1;
+      padding: 0.55rem 0.5rem;
+      font-size: 0.88rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    /* Edit is icon-only: fixed square, doesn't stretch */
+    #edEditBtn {
+      flex: 0 0 44px !important;
+    }
+    /* Close fills the full width */
+    .ed-footer .ed-close-btn {
+      width: 100%;
+      padding: 0.45rem;
+    }
+
+    /* Info row: stack date and time vertically */
+    #edInfoRow {
+      flex-direction: column;
+      gap: 0.35rem !important;
+    }
+
+    /* Budget table: hide Proposed and Variance – too cramped on mobile */
+    #edBudgetContent th:nth-child(2),
+    #edBudgetContent th:nth-child(4),
+    #edBudgetContent td:nth-child(2),
+    #edBudgetContent td:nth-child(4) {
+      display: none;
+    }
+
+    /* Map: a bit shorter on mobile */
+    #edMapContainer {
+      height: 200px !important;
+    }
+  }
+
   /* ── Status buttons ── */
   .status-btn {
     border: none;
