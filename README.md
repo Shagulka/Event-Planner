@@ -4,7 +4,7 @@
 
 ```bash
 # Clone and enter repo
-cd .../Event-Planner
+cd /Event-Planner
 
 # Create and activate virtual environment
 python -m venv venv
@@ -31,7 +31,7 @@ gunicorn --bind 127.0.0.1:8000 eventPlanner.wsgi:application
 ## 2. Deploy an Update
 
 ```bash
-cd /root/Event-Planner
+cd /Event-Planner
 source venv/bin/activate
 git pull
 cd WatsonForsbergEvents/
