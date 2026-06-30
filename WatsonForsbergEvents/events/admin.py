@@ -40,16 +40,19 @@ class CustomUserAdmin(UserAdmin):
         ('Important dates', {'fields': ('last_login', 'date_joined')}),
     )
 
-    def save_model(self, request, obj, form, change):
-        super().save_model(request, obj, form, change)
+    def save_related(self, request, form, formsets, change):
+        # Must run after save_m2m() (called inside super()), otherwise the
+        # user_permissions field on the form re-syncs from its submitted
+        # data and clobbers the add/remove below.
+        super().save_related(request, form, formsets, change)
         perm = Permission.objects.get(
             content_type__app_label='events',
             codename='can_edit_events',
         )
         if form.cleaned_data.get('can_edit_events'):
-            obj.user_permissions.add(perm)
+            form.instance.user_permissions.add(perm)
         else:
-            obj.user_permissions.remove(perm)
+            form.instance.user_permissions.remove(perm)
 
 
 admin.site.unregister(User)
